@@ -42,4 +42,4 @@ if (!has_any_capability(array('mod/quiz:viewreports', 'mod/quiz:grade'), $contex
     throw new required_capability_exception($context, $capability, 'nopermission', '');
 }
 
-echo 'heeelo, i am graet artiste!';
+echo 'Ich bin ein Platzhalter. Mehr gibt es hier noch nicht zu sehen.';
