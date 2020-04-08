@@ -57,22 +57,30 @@ class export_attempt {
         $this->initialize_attempt($attempt);
 
         if (!$this->user_rec = $DB->get_record('user', array('id' => $this->attempt_obj->get_userid()))) {
-            $errstr = get_string('except_usernotfound', 'local_quizattemptexport_kassel', $this->attempt_obj->get_userid());
-            $this->logmessage($errstr);
-            return;
+
+            $exc = new \moodle_exception('except_usernotfound', 'local_quizattemptexport_kassel', '', $this->attempt_obj->get_userid());
+            $this->logmessage($exc->getMessage());
+
+            throw $exc;
         }
+        /*
+        // idnumber currently not used...
         if (empty($this->user_rec->idnumber)) {
-            $errstr = get_string('except_usernoidnumber', 'local_quizattemptexport_kassel', $this->user_rec->id);
-            $this->logmessage($errstr);
-            return;
+
+            $exc = new \moodle_exception('except_usernoidnumber', 'local_quizattemptexport_kassel', '', $this->user_rec->id);
+            $this->logmessage($exc->getMessage());
+
+            throw $exc;
         }
+        */
 
 
         try {
             $this->exportpath = $this->prepare_downloadarea();
         } catch (\moodle_exception $e) {
             $this->logmessage($e->getMessage());
-            return;
+
+            throw $e;
         }
 
 
@@ -286,7 +294,8 @@ class export_attempt {
             'coursename' => $course->fullname,
             'quizname' => $quiz->name,
             'studentname' => fullname($this->user_rec),
-            'matriculationid' => $this->user_rec->idnumber,
+            //'matriculationid' => $this->user_rec->idnumber, // idnumber currently not used...
+            'matriculationid' => $this->user_rec->username,
             'coursecode' => $coursecode,
             'attemptstarted' => $attemptstartedtime,
             'attemptended' => $attemptsubmittedtime,
@@ -515,7 +524,8 @@ class export_attempt {
 
                 // Generate filename that contains sha256 hash of PDF content.
                 $contenthash = hash('sha256', $pdf);
-                $filename = $this->user_rec->idnumber . '_' . $this->attempt_obj->get_courseid() . '_' . $contenthash . '.pdf';
+                //$filename = $this->user_rec->idnumber . '_' . $this->attempt_obj->get_courseid() . '_' . $contenthash . '.pdf'; //idnumber currenlty not used...
+                $filename = $this->user_rec->username . '_' . $this->attempt_obj->get_courseid() . '_' . $contenthash . '.pdf';
             }
 
             // Write file.
