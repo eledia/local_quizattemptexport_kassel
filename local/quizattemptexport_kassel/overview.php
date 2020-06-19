@@ -25,21 +25,81 @@
 
 require_once '../../config.php';
 
-// Get cmid of quiz instance.
+// Get params.
 $cmid = required_param('cmid', PARAM_INT);
+$reexportattemptid = optional_param('reexport', 0, PARAM_INT);
 
 
 // Get course module, quiz instance and context.
 $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
 $instance = $DB->get_record('quiz', ['id' => $cm->instance], '*', MUST_EXIST);
 $context = \context_module::instance($cm->id);
+$course = get_course($cm->course);
 
 
 // Check access.
 require_login($cm->course, false);
-if (!has_any_capability(array('mod/quiz:viewreports', 'mod/quiz:grade'), $context)) {
+$hasviewcap = has_capability('mod/quiz:viewreports', $context);
+$hasgradecap = has_capability('mod/quiz:grade', $context);
+if (!$hasviewcap && !$hasgradecap) {
     $capability = 'mod/quiz:viewreports';
     throw new required_capability_exception($context, $capability, 'nopermission', '');
 }
 
-echo 'Ich bin ein Platzhalter. Mehr gibt es hier noch nicht zu sehen.';
+
+// Initialize page.
+$pagecontext = context_system::instance();
+$strpagetitle = get_string('page_overview_title', 'local_quizattemptexport_kassel', $instance->name);
+$selfurl = new moodle_url('/local/quizattemptexport_kassel/overview.php', ['cmid' => $cm->id]);
+$PAGE->set_context($pagecontext);
+$PAGE->set_url($selfurl);
+$PAGE->set_title($strpagetitle);
+$PAGE->set_heading($strpagetitle);
+
+
+// Check if we should export an attempt again.
+if ($hasgradecap && $reexportattemptid) {
+
+    require_once $CFG->dirroot . '/mod/quiz/attemptlib.php';
+    require_once $CFG->dirroot . '/mod/quiz/accessmanager.php';
+
+    $attempt = \quiz_attempt::create($reexportattemptid);
+
+    $export = new \local_quizattemptexport_kassel\export_attempt($attempt);
+    $export->export_pdf();
+
+    redirect($selfurl, get_string('page_overview_attemptedreexport', 'local_quizattemptexport_kassel'));
+}
+
+
+// Update breadcrumb nav.
+$navbar = $PAGE->navbar;
+$navbar->add($course->fullname, new \moodle_url('/course/view.php', ['id' => $course->id]));
+$navbar->add($instance->name, new \moodle_url('/mod/quiz/view.php', ['id' => $cm->id]));
+$navbar->add($strpagetitle, $selfurl);
+
+// Collect the data we want to display.
+$fs = get_file_storage();
+$rawdata = [];
+foreach ($DB->get_records('quiz_attempts', ['quiz' => $instance->id], '', 'DISTINCT userid AS id') as $userid => $notused) {
+
+    $rawdata[$userid] = [];
+
+    foreach ($DB->get_records('quiz_attempts', ['quiz' => $instance->id, 'userid' => $userid, 'state' => 'finished']) as $attempt) {
+
+        $rawdata[$userid][$attempt->id] = $fs->get_area_files(
+            $context->id,
+            'local_quizattemptexport_kassel',
+            'export',
+            $attempt->id,
+            'timecreated',
+            false
+        );
+    }
+}
+
+$renderer = $PAGE->get_renderer('local_quizattemptexport_kassel');
+
+echo $OUTPUT->header();
+echo $renderer->render_attemptexportlist($rawdata, $hasgradecap);
+echo $OUTPUT->footer();

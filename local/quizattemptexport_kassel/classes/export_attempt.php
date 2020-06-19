@@ -28,6 +28,9 @@ namespace local_quizattemptexport_kassel;
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once $CFG->dirroot . '/mod/quiz/attemptlib.php';
+require_once $CFG->dirroot . '/mod/quiz/accessmanager.php';
+
 class export_attempt {
 
     private $page;
@@ -190,6 +193,7 @@ class export_attempt {
 
         $coursename = clean_param($course->fullname, PARAM_SAFEDIR);
 
+        // TODO auf vorhandenen Ordner mit anderem Namen prüfen
         $dirname = $course->id . '_' . $coursename;
         $exportpath = $export_dir . '/' . $dirname;
 
@@ -524,14 +528,33 @@ class export_attempt {
 
                 // Generate filename that contains sha256 hash of PDF content.
                 $contenthash = hash('sha256', $pdf);
+                $time = date('YmdHis', time());
                 //$filename = $this->user_rec->idnumber . '_' . $this->attempt_obj->get_courseid() . '_' . $contenthash . '.pdf'; //idnumber currenlty not used...
-                $filename = $this->user_rec->username . '_' . $this->attempt_obj->get_courseid() . '_' . $contenthash . '.pdf';
+                $filename = $this->user_rec->username . '_' . $this->attempt_obj->get_cmid() . '_' . $time . '_' . $contenthash . '.pdf';
             }
 
+
+            $cm = $this->attempt_obj->get_cm();
+            $context = \context_module::instance($cm->id);
+
+            $filedata = new \stdClass;
+            $filedata->contextid = $context->id;
+            $filedata->component = 'local_quizattemptexport_kassel';
+            $filedata->filearea = 'export';
+            $filedata->itemid = $this->attempt_obj->get_attemptid();
+            $filedata->userid = $this->attempt_obj->get_userid();
+            $filedata->filepath = '/';
+            $filedata->filename = $filename;
+
+
+            $fs = get_file_storage();
+            $file = $fs->create_file_from_string($filedata, $pdf);
+
+
             // Write file.
-            $res = fopen($this->exportpath . '/' . $filename, 'w');
-            fwrite($res, $pdf);
-            fclose($res);
+            //$res = fopen($this->exportpath . '/' . $filename, 'w');
+            //fwrite($res, $pdf);
+            //fclose($res);
         }
 
     }
