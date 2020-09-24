@@ -33,10 +33,14 @@ class quiz_attempt {
 
     public static function handle_submitted(\mod_quiz\event\attempt_submitted $event) {
 
-        $event_data = $event->get_data();
-        $attempt = \quiz_attempt::create($event_data['objectid']);
+        $exportenabled = get_config('local_quizattemptexport_kassel', 'autoexport');
+        if ($exportenabled) {
 
-        $export = new export_attempt($attempt);
-        $export->export_pdf();
+            $event_data = $event->get_data();
+            $attempt = \quiz_attempt::create($event_data['objectid']);
+
+            $export = new export_attempt($attempt);
+            $export->export_pdf();
+        }
     }
 }

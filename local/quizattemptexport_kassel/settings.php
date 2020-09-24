@@ -35,6 +35,12 @@ if ($hassiteconfig) { // needs this condition or there is error on login page
     );
 
 
+    $settings->add(new admin_setting_configcheckbox('local_quizattemptexport_kassel/autoexport',
+            get_string('setting_autoexport', 'local_quizattemptexport_kassel'),
+            get_string('setting_autoexport_desc', 'local_quizattemptexport_kassel'),
+            0)
+    );
+
     $themeobjects = get_list_of_themes();
     $themes=array();
     $themes[''] = get_string('forceno');
