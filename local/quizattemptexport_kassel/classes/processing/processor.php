@@ -30,7 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 class processor {
 
     public static function execute(string $html, \quiz_attempt $attempt) {
-        global $DB;
+        global $CFG, $DB;
 
         $html = domdocument_util::prepare_html($html);
         $dom = domdocument_util::initialize_domdocument($html);
@@ -96,15 +96,16 @@ class processor {
 
             $filerec = $DB->get_record('files', ['component' => $component, 'filearea' => $filearea, 'itemid' => $itemid, 'filename' => $imgfilename, 'contextid' => $contextid]);
 
-            if (empty($filerec)) {
-                continue;
+            if (!empty($filerec)) {
+                $fs = get_file_storage();
+                $file = $fs->get_file_instance($filerec);
+                $imgcontent = $file->get_content();
+                $dataurl = 'data:'.$file->get_mimetype().';base64,' . base64_encode($imgcontent);
+            } else {
+                $imgcontent = file_get_contents($CFG->dirroot . '/local/quizattemptexport_kassel/pix/edit-delete.png');
+                $dataurl = 'data:image/png;base64,' . base64_encode($imgcontent);
             }
 
-            $fs = get_file_storage();
-            $file = $fs->get_file_instance($filerec);
-            $imgcontent = $file->get_content();
-
-            $dataurl = 'data:'.$file->get_mimetype().';base64,' . base64_encode($imgcontent);
             $img->setAttribute('src', $dataurl);
         }
 

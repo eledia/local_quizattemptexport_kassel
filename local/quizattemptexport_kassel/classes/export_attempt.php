@@ -176,7 +176,7 @@ class export_attempt {
         try {
 
             // Generate temp file name for pdf generation.
-            $tempexportfile = $CFG->dataroot . '/' . uuid::generate() . '.pdf';
+            $tempexportfile = $CFG->tempdir . '/' . uuid::generate() . '.pdf';
 
             // Decide which wkhtmltopdf binary to use.
             $osinfo = php_uname('s');
