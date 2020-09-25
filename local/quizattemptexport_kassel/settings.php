@@ -64,4 +64,11 @@ if ($hassiteconfig) { // needs this condition or there is error on login page
             $pdfexportdir_default)
     );
 
+    $settings->add(new admin_setting_configtext('local_quizattemptexport_kassel/pdfgenerationtimeout',
+            get_string('setting_pdfgenerationtimeout', 'local_quizattemptexport_kassel'),
+            get_string('setting_pdfgenerationtimeout_desc', 'local_quizattemptexport_kassel'),
+            120,
+            PARAM_INT)
+    );
+
 }

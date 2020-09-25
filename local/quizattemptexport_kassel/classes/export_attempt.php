@@ -28,7 +28,6 @@ namespace local_quizattemptexport_kassel;
 
 use core\uuid;
 use Knp\Snappy\Pdf;
-use local_quizattemptexport_kassel\processing\processor;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -190,10 +189,22 @@ class export_attempt {
             $log = new \Monolog\Logger('snappy-wkhtmltopdf');
             $log->pushHandler(new \Monolog\Handler\StreamHandler($CFG->dataroot . '/quizattemptexport_snappy.log', \Monolog\Logger::ERROR));
 
+            // Get the configured timeout for PDF generation. A settings value of 0 should deactivate the timeout, i.e. we use
+            // NULL as the timeout value.
+            $timeout = null;
+            if ($settingstimeout = get_config('local_quizattemptexport_kassel', 'pdfgenerationtimeout')) {
+                $settingstimeout = (int) $settingstimeout;
+                if ($settingstimeout < 0) {
+                    $settingstimeout = null;
+                }
+                $timeout = $settingstimeout;
+            }
+
             // Start pdf generation and write into a temp file.
             $snappy = new Pdf();
             $snappy->setLogger($log);
             $snappy->setTemporaryFolder($CFG->tempdir);
+            $snappy->setTimeout($timeout);
 
             $snappy->setOption('toc', false);
             $snappy->setOption('no-outline', true);
@@ -236,7 +247,7 @@ class export_attempt {
             file_put_contents($localfilepath, $tempfilecontent);
 
             // Debug output...
-            file_put_contents($localfilepath . '.html', $html);
+            //file_put_contents($localfilepath . '.html', $html);
 
 
             // Write file into moodle file system for web access to the files.

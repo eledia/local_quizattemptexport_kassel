@@ -27,6 +27,11 @@ namespace local_quizattemptexport_kassel;
 
 use local_quizattemptexport_kassel\processing\processor;
 
+defined('MOODLE_INTERNAL') || die();
+
+require_once $CFG->dirroot . '/mod/quiz/attemptlib.php';
+require_once $CFG->dirroot . '/mod/quiz/accessmanager.php';
+
 class generate_attempt_html {
 
     private $page;
