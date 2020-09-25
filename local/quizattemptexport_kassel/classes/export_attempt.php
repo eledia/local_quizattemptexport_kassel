@@ -173,33 +173,33 @@ class export_attempt {
         set_time_limit(0);
         ob_start();// tcpdf doesnt like outputs here.
 
+        // Generate temp file name for pdf generation.
+        $tempexportfile = $CFG->tempdir . '/' . uuid::generate() . '.pdf';
+
+        // Decide which wkhtmltopdf binary to use.
+        $osinfo = php_uname('s');
+        $binarypath = $CFG->dirroot . '/local/quizattemptexport_kassel/vendor/h4cc/wkhtmltopdf-amd64/bin/wkhtmltopdf-amd64';
+        if (false !== strpos($osinfo, 'Windows')) {
+            $binarypath = $CFG->dirroot . '/local/quizattemptexport_kassel/vendor/wemersonjanuario/wkhtmltopdf-windows/bin/64bit/wkhtmltopdf.exe';
+        }
+
+        // Create a log channel.
+        $log = new \Monolog\Logger('snappy-wkhtmltopdf');
+        $log->pushHandler(new \Monolog\Handler\StreamHandler($CFG->dataroot . '/quizattemptexport_snappy.log', \Monolog\Logger::ERROR));
+
+        // Get the configured timeout for PDF generation. A settings value of 0 should deactivate the timeout, i.e. we use
+        // NULL as the timeout value.
+        $timeout = null;
+        if ($settingstimeout = get_config('local_quizattemptexport_kassel', 'pdfgenerationtimeout')) {
+            $settingstimeout = (int) $settingstimeout;
+            if ($settingstimeout < 0) {
+                $settingstimeout = null;
+            }
+            $timeout = $settingstimeout;
+        }
+
+
         try {
-
-            // Generate temp file name for pdf generation.
-            $tempexportfile = $CFG->tempdir . '/' . uuid::generate() . '.pdf';
-
-            // Decide which wkhtmltopdf binary to use.
-            $osinfo = php_uname('s');
-            $binarypath = $CFG->dirroot . '/local/quizattemptexport_kassel/vendor/h4cc/wkhtmltopdf-amd64/bin/wkhtmltopdf-amd64';
-            if (false !== strpos($osinfo, 'Windows')) {
-                $binarypath = $CFG->dirroot . '/local/quizattemptexport_kassel/vendor/wemersonjanuario/wkhtmltopdf-windows/bin/64bit/wkhtmltopdf.exe';
-            }
-
-            // Create a log channel.
-            $log = new \Monolog\Logger('snappy-wkhtmltopdf');
-            $log->pushHandler(new \Monolog\Handler\StreamHandler($CFG->dataroot . '/quizattemptexport_snappy.log', \Monolog\Logger::ERROR));
-
-            // Get the configured timeout for PDF generation. A settings value of 0 should deactivate the timeout, i.e. we use
-            // NULL as the timeout value.
-            $timeout = null;
-            if ($settingstimeout = get_config('local_quizattemptexport_kassel', 'pdfgenerationtimeout')) {
-                $settingstimeout = (int) $settingstimeout;
-                if ($settingstimeout < 0) {
-                    $settingstimeout = null;
-                }
-                $timeout = $settingstimeout;
-            }
-
             // Start pdf generation and write into a temp file.
             $snappy = new Pdf();
             $snappy->setLogger($log);
@@ -214,69 +214,75 @@ class export_attempt {
             $snappy->setBinary($binarypath);
             $snappy->generateFromHtml($html, $tempexportfile);
 
-            // Get content from temp file for further processing and clean up.
-            $tempfilecontent = file_get_contents($tempexportfile);
-            unlink($tempexportfile);
-
-            // Generate the parts of the target file name.
-
-            // Quiz instance name
-            $cm = $this->attempt_obj->get_cm();
-            $instance = $DB->get_record('quiz', ['id' => $cm->instance]);
-            $quizname = $instance->name;
-
-            // The users login name.
-            $username = $this->user_rec->username;
-
-            // The attempts id for uniqueness.
-            $attemptid = $this->attempt_obj->get_attemptid();
-
-            // The current time for more uniqueness.
-            $time = date('YmdHis', time());
-
-            // The sha256 hash of the file content for validation purposes.
-            $contenthash = hash('sha256', $tempfilecontent);
-
-            // Piece the file name parts together.
-            $filename = $quizname . '_' . $username . '_' . $attemptid . '_' . $time . '_' . $contenthash . '.pdf';
-
-
-            // TODO local filname might require milliseconds instead of seconds.
-            // Write file into the defined export dir, so it may be archived using sftp.
-            $localfilepath = $this->exportpath . '/' . $filename;
-            file_put_contents($localfilepath, $tempfilecontent);
-
-            // Debug output...
-            //file_put_contents($localfilepath . '.html', $html);
-
-
-            // Write file into moodle file system for web access to the files.
-            $cm = $this->attempt_obj->get_cm();
-            $context = \context_module::instance($cm->id);
-
-            $filedata = new \stdClass;
-            $filedata->contextid = $context->id;
-            $filedata->component = 'local_quizattemptexport_kassel';
-            $filedata->filearea = 'export';
-            $filedata->itemid = $this->attempt_obj->get_attemptid();
-            $filedata->userid = $this->attempt_obj->get_userid();
-            $filedata->filepath = '/';
-            $filedata->filename = $filename;
-
-            $fs = get_file_storage();
-            $file = $fs->create_file_from_string($filedata, $tempfilecontent);
-
-
-
         } catch (\Exception $exc) {
-            ob_start();
-            echo $exc->getMessage();
-            echo "\n";
-            echo $exc->getTraceAsString();
-            $debug_out = ob_get_contents();
-            ob_end_clean();
-            $this->logmessage($debug_out);
+
+            // Check if file really was not generated or if the error returned
+            // by wkhtmltopdf may have been non-critical.
+
+            if (!file_exists($tempexportfile) || !filesize($tempexportfile)) {
+                ob_start();
+                echo $exc->getMessage();
+                echo "\n";
+                echo $exc->getTraceAsString();
+                $debug_out = ob_get_contents();
+                ob_end_clean();
+                $this->logmessage($debug_out);
+                return;
+            }
         }
+
+        // Get content from temp file for further processing and clean up.
+        $tempfilecontent = file_get_contents($tempexportfile);
+        unlink($tempexportfile);
+
+        // Generate the parts of the target file name.
+
+        // Quiz instance name
+        $cm = $this->attempt_obj->get_cm();
+        $instance = $DB->get_record('quiz', ['id' => $cm->instance]);
+        $quizname = $instance->name;
+
+        // The users login name.
+        $username = $this->user_rec->username;
+
+        // The attempts id for uniqueness.
+        $attemptid = $this->attempt_obj->get_attemptid();
+
+        // The current time for more uniqueness.
+        $time = date('YmdHis', time());
+
+        // The sha256 hash of the file content for validation purposes.
+        $contenthash = hash('sha256', $tempfilecontent);
+
+        // Piece the file name parts together.
+        $filename = $quizname . '_' . $username . '_' . $attemptid . '_' . $time . '_' . $contenthash . '.pdf';
+
+
+        // TODO local filname might require milliseconds instead of seconds.
+        // Write file into the defined export dir, so it may be archived using sftp.
+        $localfilepath = $this->exportpath . '/' . $filename;
+        file_put_contents($localfilepath, $tempfilecontent);
+
+        // Debug output...
+        //file_put_contents($localfilepath . '.html', $html);
+
+
+        // Write file into moodle file system for web access to the files.
+        $cm = $this->attempt_obj->get_cm();
+        $context = \context_module::instance($cm->id);
+
+        $filedata = new \stdClass;
+        $filedata->contextid = $context->id;
+        $filedata->component = 'local_quizattemptexport_kassel';
+        $filedata->filearea = 'export';
+        $filedata->itemid = $this->attempt_obj->get_attemptid();
+        $filedata->userid = $this->attempt_obj->get_userid();
+        $filedata->filepath = '/';
+        $filedata->filename = $filename;
+
+        $fs = get_file_storage();
+        $file = $fs->create_file_from_string($filedata, $tempfilecontent);
+
 
         // Clean up any unexpected output.
         ob_end_clean();
