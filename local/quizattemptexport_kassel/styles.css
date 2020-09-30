@@ -1,3 +1,11 @@
+.usersattemptslist #exportallbtn {
+    float: right;
+}
+
+.usersattemptslist .userattempts {
+    clear: both;
+}
+
 .usersattemptslist .userattempts table {
     width: 100%;
     border-collapse: collapse;

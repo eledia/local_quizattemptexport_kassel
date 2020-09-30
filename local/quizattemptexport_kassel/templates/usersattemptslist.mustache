@@ -1,5 +1,9 @@
 <div class="usersattemptslist">
 
+    {{#exportallurl}}
+        <a href="{{{exportallurl}}}" id="exportallbtn" class="btn btn-primary">{{#str}}template_usersattemptslist_exportall, local_quizattemptexport_kassel{{/str}}</a>
+    {{/exportallurl}}
+
     {{#users}}
 
         <div class="userattempts">

@@ -23,11 +23,14 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+define('NO_OUTPUT_BUFFERING', true); // Required for progress bar to work.
+
 require_once '../../config.php';
 
 // Get params.
 $cmid = required_param('cmid', PARAM_INT);
 $reexportattemptid = optional_param('reexport', 0, PARAM_INT);
+$reexportall = optional_param('exportall', 0, PARAM_INT);
 
 
 // Get course module, quiz instance and context.
@@ -57,7 +60,7 @@ $PAGE->set_title($strpagetitle);
 $PAGE->set_heading($strpagetitle);
 
 
-// Check if we should export an attempt again.
+// Check if we should export an attempt.
 if ($hasgradecap && $reexportattemptid) {
 
     require_once $CFG->dirroot . '/mod/quiz/attemptlib.php';
@@ -71,6 +74,38 @@ if ($hasgradecap && $reexportattemptid) {
     redirect($selfurl, get_string('page_overview_attemptedreexport', 'local_quizattemptexport_kassel'));
 }
 
+// Check if we should export all attempts.
+if ($hasgradecap && $reexportall) {
+
+    require_once $CFG->dirroot . '/mod/quiz/attemptlib.php';
+    require_once $CFG->dirroot . '/mod/quiz/accessmanager.php';
+
+    echo $OUTPUT->header();
+
+    $progressbar = new progress_bar('exportall', 2500);
+    $progressbar->create();
+
+    $allattempts = $DB->get_records('quiz_attempts', ['quiz' => $instance->id, 'state' => 'finished']);
+    $allattemptsnum = count($allattempts);
+    $current = 1;
+
+    foreach ($allattempts as $attemptid => $attemptrec) {
+
+        $progressbar->update($current++, $allattemptsnum, get_string('page_overview_progressbar_step', 'local_quizattemptexport_kassel', $attemptid));
+
+        $attempt = \quiz_attempt::create($attemptid);
+        $export = new \local_quizattemptexport_kassel\export_attempt($attempt);
+        $export->export_pdf();
+    }
+
+    $progressbar->update_full(100, get_string('page_overview_progressbar_finished', 'local_quizattemptexport_kassel'));
+
+    echo $OUTPUT->continue_button($selfurl, 'get');
+    echo $OUTPUT->footer();
+    exit;
+}
+
+
 
 // Update breadcrumb nav.
 $navbar = $PAGE->navbar;
@@ -81,7 +116,7 @@ $navbar->add($strpagetitle, $selfurl);
 // Collect the data we want to display.
 $fs = get_file_storage();
 $rawdata = [];
-foreach ($DB->get_records('quiz_attempts', ['quiz' => $instance->id], '', 'DISTINCT userid AS id') as $userid => $notused) {
+foreach ($DB->get_records('quiz_attempts', ['quiz' => $instance->id, 'preview' => 0], '', 'DISTINCT userid AS id') as $userid => $notused) {
 
     $rawdata[$userid] = [];
 
@@ -101,5 +136,5 @@ foreach ($DB->get_records('quiz_attempts', ['quiz' => $instance->id], '', 'DISTI
 $renderer = $PAGE->get_renderer('local_quizattemptexport_kassel');
 
 echo $OUTPUT->header();
-echo $renderer->render_attemptexportlist($rawdata, $hasgradecap);
+echo $renderer->render_attemptexportlist($rawdata, $cm->id, $hasgradecap);
 echo $OUTPUT->footer();

@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Postprocessing implementation for qtype_ddimageortext
+ * Postprocessing implementation for qtype_ddmarker
  *
  * @package		local_quizattemptexport_kassel
  * @copyright	2020 Ralf Wiederhold
@@ -32,7 +32,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once $CFG->dirroot . '/mod/quiz/attemptlib.php';
 require_once $CFG->dirroot . '/mod/quiz/accessmanager.php';
 
-class ddimageortext extends base {
+class ddmarker extends base {
 
     public static function process(string $questionhtml, \quiz_attempt $attempt, int $slot) : string {
         global $CFG, $DB;
@@ -40,6 +40,7 @@ class ddimageortext extends base {
         // Get question attempt and question definition.
         $qa = $attempt->get_question_attempt($slot);
         $question = $qa->get_question();
+
 
         // Get the users drops from the question attempt data as well as the order of
         // the choices in the question instance.
@@ -73,34 +74,27 @@ class ddimageortext extends base {
             if ($step->get_state() instanceof \question_state_complete) {
                 $userdrops = $step->get_all_data();
             }
-
-            // Get the users drops from an incomplete answer.
-            if ($step->get_state() instanceof \question_state_invalid) {
-                $userdrops = $step->get_all_data();
-            }
         }
 
-        // Build map of drop zones and the actual drop the user placed
-        // on the drop zone within the attempt.
-        $dropzones = [];
-        foreach ($question->places as $key => $dropzone) {
-            $obj = new \stdClass;
-            $obj->definition = $dropzone;
-            $obj->drop = null;
-            if (!empty($userdrops['p' . $key])) {
+        // Build array of markers we need to render onto the background.
+        $rendermarkers = [];
+        foreach ($instancechoicemapping as $group => $groupchoices) {
+            foreach ($groupchoices as $key => $option) {
 
-                $obj->drop = $instancechoicemapping[$dropzone->group][$userdrops['p' . $key]];
+                if (!empty($userdrops['c' . $key])) {
+                    $obj = new \stdClass;
+                    $obj->text = $option->text;
+                    $obj->coords = explode(',', $userdrops['c' . $key]);
+                    $rendermarkers[] = $obj;
+                }
             }
-
-            $dropzones[] = $obj;
         }
-
 
         // Start image generation.
         $fs = get_file_storage();
 
         // Get the background image from the specific question instance.
-        $params = ['contextid' => $question->contextid, 'itemid' => $question->id, 'filearea' => 'bgimage', 'component' => 'qtype_ddimageortext'];
+        $params = ['contextid' => $question->contextid, 'itemid' => $question->id, 'filearea' => 'bgimage', 'component' => 'qtype_ddmarker'];
         $select = 'contextid = :contextid AND itemid = :itemid AND filearea = :filearea AND component = :component AND filesize <> 0';
         $dropbg = $DB->get_record_select('files', $select, $params);
         $bgfileinstance = $fs->get_file_instance($dropbg);
@@ -108,46 +102,61 @@ class ddimageortext extends base {
         $bgfileinfo = $bgfileinstance->get_imageinfo();
 
         // Calculate a somewhat fitting font size from the drop backgrounds height.
-        $calculatedfontsize = (int) ($bgfileinfo['height'] / 15);
+        $calculatedfontsize = (int) ($bgfileinfo['height'] / 18);
 
-        // Load background into GD and render stuff onto it.
+        // Load background image and marker icon into GD.
+        $markerimg = imagecreatefrompng($CFG->dirroot . '/local/quizattemptexport_kassel/pix/crosshairs.png');
         $gdbgfile = imagecreatefromstring($bgfilecontent);
-        foreach ($dropzones as $dropzone) {
 
-            if (empty($dropzone->drop)) {
-                continue;
-            }
+        // Iterate the markers positioned by the user and render them onto the background.
+        foreach ($rendermarkers as $marker) {
 
-            $dropx = $dropzone->definition->xy[0];
-            $dropy = $dropzone->definition->xy[1];
+            $dropx = $marker->coords[0];
+            $dropy = $marker->coords[1];
 
-            // Render image or text? If there is a drop file it is an image, if there is no drop file it is text...
-            $params = ['contextid' => $question->contextid, 'itemid' => $dropzone->drop->id, 'filearea' => 'dragimage', 'component' => 'qtype_ddimageortext'];
-            $select = 'contextid = :contextid AND itemid = :itemid AND filearea = :filearea AND component = :component AND filesize <> 0';
-            $dropfile = $DB->get_record_select('files', $select, $params);
-            if (empty($dropfile)) {
+            $textcolor = imagecolorallocate($gdbgfile, 0, 0, 0);
+            $text = $marker->text;
+            $font = $CFG->dirroot . '/local/quizattemptexport_kassel/font/Open_Sans/OpenSans-Regular.ttf';
 
-                $textcolor = imagecolorallocate($gdbgfile, 0, 0, 0);
-                $text = $dropzone->drop->text;
-                $font = $CFG->dirroot . '/local/quizattemptexport_kassel/font/Open_Sans/OpenSans-Regular.ttf';
+            $margin = 1;
+            $border = 1;
 
-                // Need to offset y-value as it starts bottom left for text, instead of top left as for other stuff.
-                imagettftext($gdbgfile, $calculatedfontsize, 0, $dropx, $dropy + $calculatedfontsize, $textcolor, $font, $text);
+            // Translate pt into px.
+            $fontpix = $calculatedfontsize * 1.10; // Slightly off, but better result than 1.33
 
-            } else {
+            // Get dimensions for text box.
+            $textboxheight = $fontpix + 2 * $margin;
+            $textlength = strlen($text);
+            $textboxwidth = $fontpix * 0.7 * $textlength;
+            $textboxwidth += $margin * 2;
 
-                // Get the drop file instance.
-                $dropfileinstance = $fs->get_file_instance($dropfile);
-                $dropfilecontent = $dropfileinstance->get_content();
-                $imageinfo = $dropfileinstance->get_imageinfo();
+            // Get starting positions for border rect and fill rect.
+            $backgroundrect_x_from = $dropx;
+            $backgroundrect_y_from = $dropy;
+            $fillrect_x_from = $backgroundrect_x_from + $border;
+            $fillrect_y_from = $backgroundrect_y_from + $border;
 
-                // Load into GD.
-                $gddropfile = imagecreatefromstring($dropfilecontent);
+            // Get end positions for rectangles.
+            $backgroundrect_x_to = $backgroundrect_x_from + ($textboxwidth + (2 * $border));
+            $backgroundrect_y_to = $backgroundrect_y_from + ($textboxheight + (2 * $border));
+            $fillrect_x_to = $fillrect_x_from + $textboxwidth;
+            $fillrect_y_to = $fillrect_y_from + $textboxheight;
 
-                // Render onto background and clean it up.
-                imagecopymerge($gdbgfile, $gddropfile, $dropx, $dropy, 0, 0, $imageinfo['width'], $imageinfo['height'], 100);
-                imagedestroy($gddropfile);
-            }
+            // Colors...
+            $bgcolor = imagecolorallocate($gdbgfile, 0, 0, 0);
+            $fgcolor = imagecolorallocate($gdbgfile, 255, 255, 255);
+
+            // Draw text background.
+            imagefilledrectangle($gdbgfile, $backgroundrect_x_from, $backgroundrect_y_from, $backgroundrect_x_to, $backgroundrect_y_to, $bgcolor);
+            imagefilledrectangle($gdbgfile, $fillrect_x_from, $fillrect_y_from, $fillrect_x_to, $fillrect_y_to, $fgcolor);
+
+            // Draw marker icon over text backgrounds
+            imagecopymerge($gdbgfile, $markerimg, $dropx - 7.5, $dropy - 7.5, 0, 0, 15, 15, 100);
+
+            // Draw text onto its background.
+            $text_x = $fillrect_x_from + $margin;
+            $text_y = $fillrect_y_from + $margin + $calculatedfontsize;
+            imagettftext($gdbgfile, $calculatedfontsize, 0, $text_x, $text_y, $textcolor, $font, $text);
         }
 
         // We only need the image content anyway, so just collect it from the output buffer
@@ -159,6 +168,7 @@ class ddimageortext extends base {
 
         // Clean up.
         imagedestroy($gdbgfile);
+        imagedestroy($markerimg);
 
         // Get DOM and XPath.
         $dom = domdocument_util::initialize_domdocument($questionhtml);

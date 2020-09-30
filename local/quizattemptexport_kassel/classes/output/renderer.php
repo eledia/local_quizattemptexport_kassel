@@ -32,11 +32,12 @@ require_once $CFG->dirroot . '/mod/quiz/accessmanager.php';
 
 class renderer extends \plugin_renderer_base {
 
-    public function render_attemptexportlist($rawdata, $canexportagain) {
+    public function render_attemptexportlist($rawdata, $cmid, $canexportagain) {
         global $DB;
 
         $templatedata = [
-            'users' => []
+            'users' => [],
+            'exportallurl' => $canexportagain && !empty($rawdata) ? new \moodle_url('/local/quizattemptexport_kassel/overview.php', ['cmid' => $cmid, 'exportall' => 1]) : ''
         ];
         foreach ($rawdata as $userid => $attempts) {
 

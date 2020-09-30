@@ -37,7 +37,8 @@ require_once $CFG->dirroot . '/mod/quiz/accessmanager.php';
 class export_attempt {
 
     private $page;
-    private $output;
+
+    private $logger;
 
     private $exportpath;
 
@@ -48,21 +49,20 @@ class export_attempt {
     public function __construct(\quiz_attempt $attempt) {
         global $SITE, $CFG, $PAGE, $DB;
 
-        static $pagecontext;
-        static $pagecourse;
-
-        // Some themes are not compatible so we can just switch to another.
-        $CFG->theme = get_config('local_quizattemptexport_kassel', 'theme');
-
-        // Some icons are generated as svg image. We have to deactivate this.
-        $CFG->svgicons = false;
-
         $this->attempt_obj = $attempt;
+
+        // Load Vendor requirements.
+        require_once $CFG->dirroot . '/local/quizattemptexport_kassel/vendor/autoload.php';
+
+        // Create logger.
+        $log = new \Monolog\Logger('quizattemptexport_kassel');
+        $log->pushHandler(new \Monolog\Handler\StreamHandler($CFG->dataroot . '/quizattemptexport.log', \Monolog\Logger::ERROR));
+        $this->logger = $log;
 
         if (!$this->user_rec = $DB->get_record('user', array('id' => $this->attempt_obj->get_userid()))) {
 
             $exc = new \moodle_exception('except_usernotfound', 'local_quizattemptexport_kassel', '', $this->attempt_obj->get_userid());
-            $this->logmessage($exc->getMessage());
+            $this->logexception($exc);
 
             throw $exc;
         }
@@ -78,43 +78,23 @@ class export_attempt {
         }
         */
 
-
+        // Check export directory.
         try {
             $this->exportpath = $this->prepare_downloadarea();
         } catch (\moodle_exception $e) {
-            $this->logmessage($e->getMessage());
+            $this->logexception($e);
 
             throw $e;
         }
 
-        //create page object and set theme
-        if (empty($PAGE)) {
-            $this->page = new \moodle_page();
-        } else {
-            $this->page = $PAGE;
-        }
+        // Create page object for internal use.
+        $this->page = new \moodle_page();
+        $this->page->set_context(\context_system::instance());   // We also have to set the context.
+        $this->page->set_course($SITE);
 
-        if (empty($pagecontext)) {
-            $this->page->set_context(\context_system::instance());   // We also have to set the context.
-            $pagecontext = $this->page->context;
-        }
-
-        if (empty($pagecourse)) {
-            $this->page->set_course($SITE);
-            $pagecourse = $this->page->course;
-        }
         $this->page->set_url('/');
         $this->page->set_pagelayout('popup');
         $this->page->set_pagetype('site-index'); //necessary, or the current url will be used automatically
-        //$this->page->theme->force_svg_use(false); //we need to use png-type icons
-
-        //get the theme for the the default device type
-        //we only need to set it if we want to explicitly use a specific theme
-        //$themename = core_useragent::get_device_type_theme(core_useragent::DEVICETYPE_DEFAULT);
-        //$this->page->force_theme($themename);
-
-        //create the core-renderer
-        $this->output = $this->page->get_renderer('core', null, RENDERER_TARGET_GENERAL);
     }
 
 
@@ -166,9 +146,6 @@ class export_attempt {
         $generator = new generate_attempt_html($this->page);
         $html = $generator->generate($this->attempt_obj);
 
-        // Load vendor requirements.
-        require_once $CFG->dirroot . '/local/quizattemptexport_kassel/vendor/autoload.php';
-
         // Set up some processing requirements.
         set_time_limit(0);
         ob_start();// tcpdf doesnt like outputs here.
@@ -182,10 +159,6 @@ class export_attempt {
         if (false !== strpos($osinfo, 'Windows')) {
             $binarypath = $CFG->dirroot . '/local/quizattemptexport_kassel/vendor/wemersonjanuario/wkhtmltopdf-windows/bin/64bit/wkhtmltopdf.exe';
         }
-
-        // Create a log channel.
-        $log = new \Monolog\Logger('snappy-wkhtmltopdf');
-        $log->pushHandler(new \Monolog\Handler\StreamHandler($CFG->dataroot . '/quizattemptexport_snappy.log', \Monolog\Logger::ERROR));
 
         // Get the configured timeout for PDF generation. A settings value of 0 should deactivate the timeout, i.e. we use
         // NULL as the timeout value.
@@ -202,7 +175,7 @@ class export_attempt {
         try {
             // Start pdf generation and write into a temp file.
             $snappy = new Pdf();
-            $snappy->setLogger($log);
+            $snappy->setLogger($this->logger);
             $snappy->setTemporaryFolder($CFG->tempdir);
             $snappy->setTimeout($timeout);
 
@@ -220,13 +193,7 @@ class export_attempt {
             // by wkhtmltopdf may have been non-critical.
 
             if (!file_exists($tempexportfile) || !filesize($tempexportfile)) {
-                ob_start();
-                echo $exc->getMessage();
-                echo "\n";
-                echo $exc->getTraceAsString();
-                $debug_out = ob_get_contents();
-                ob_end_clean();
-                $this->logmessage($debug_out);
+                $this->logexception($exc);
                 return;
             }
         }
@@ -264,7 +231,7 @@ class export_attempt {
         file_put_contents($localfilepath, $tempfilecontent);
 
         // Debug output...
-        //file_put_contents($localfilepath . '.html', $html);
+        file_put_contents($localfilepath . '.html', $html);
 
 
         // Write file into moodle file system for web access to the files.
@@ -291,17 +258,36 @@ class export_attempt {
 
 
     /**
-     * Writes the given message into a logfile within
-     * moodledata.
+     * Writes the given message to the internal log handler
+     * with level ERROR.
      *
      * @param string $msg
      */
     private function logmessage($msg) {
-        global $CFG;
+        $this->logger->error($msg);
+    }
 
-        $fh = fopen($CFG->dataroot . '/quizexport_kassel.log', 'w');
-        $tprefix = date('d.m.Y - H:i:s');
-        fwrite($fh, $tprefix . ' :' . $msg . "\n");
-        fclose($fh);
+    /**
+     * Writes the given Exception to the internal log handler
+     * with as much info as sensible with level CRITICAL.
+     *
+     * @param \Exception $exc
+     */
+    private function logexception($exc) {
+
+        $message = $exc->getMessage();
+        $trace = $exc->getTraceAsString();
+        $debug = '';
+        $errorcode = '';
+        if ($exc instanceof \moodle_exception) {
+            $debug = $exc->debuginfo;
+            $errorcode = $exc->errorcode;
+        }
+
+        $this->logger->critical($message,[
+            'trace' => $trace,
+            'debug' => $debug,
+            'errorcode' => $errorcode
+        ]);
     }
 }
