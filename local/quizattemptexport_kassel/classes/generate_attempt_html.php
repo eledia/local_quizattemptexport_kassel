@@ -360,6 +360,7 @@ class generate_attempt_html {
              div.comment,
              div.outcome,
              div.formulation,
+             div.correctresult, /* Added manually in processing methods */
              div.history {
                 border: 1px solid #000;
                 margin: 10px 0;
@@ -369,6 +370,7 @@ class generate_attempt_html {
              div.comment h4,
              div.outcome h4,
              div.formulation h4,
+             div.correctresult h4, /* Added manually in processing methods */
              div.history h4 {
                 margin: 0 0 10px 0;
              }

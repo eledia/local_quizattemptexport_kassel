@@ -77,7 +77,10 @@ class ddmarker extends base {
         }
 
         // Build array of markers we need to render onto the background.
-        $rendermarkers = [];
+        $rendermarkers = [
+            'points' => [],
+            'shapes' => []
+        ];
         foreach ($instancechoicemapping as $group => $groupchoices) {
             foreach ($groupchoices as $key => $option) {
 
@@ -85,10 +88,106 @@ class ddmarker extends base {
                     $obj = new \stdClass;
                     $obj->text = $option->text;
                     $obj->coords = explode(',', $userdrops['c' . $key]);
-                    $rendermarkers[] = $obj;
+                    $rendermarkers['points'][] = $obj;
                 }
             }
         }
+
+        $imagecontent = self::generate_image($question, $rendermarkers);
+
+        // Get DOM and XPath.
+        $dom = domdocument_util::initialize_domdocument($questionhtml);
+        $xpath = new \DOMXPath($dom);
+
+        // Rewrite SRC of background image with our generated image as a base64 encoded data url.
+        $dataurl = 'data:image/png;base64,' . base64_encode($imagecontent);
+        $backgrounds = $xpath->query('//img[starts-with(@class, "dropbackground")]');
+        foreach ($backgrounds as $bg) {
+            /** @var \DOMElement $bg */
+            $bg->setAttribute('src', $dataurl);
+        }
+
+
+        // Generate image with correct answers.
+        $correctmarkers = [
+            'points' => [],
+            'shapes' => []
+        ];
+        foreach ($question->rightchoices as $key => $value) {
+            $obj = new \stdClass;
+            $obj->text = $question->choices[$question->places[$key]->group][$value]->text;
+            $obj->coords = $question->places[$key]->shape->center_point();
+
+            if ($question->places[$key]->shape instanceof \qtype_ddmarker_shape_rectangle) {
+
+                $coords = $question->places[$key]->coords;
+                $parts = explode(';', $coords);
+
+                $shape = new \stdClass;
+                $shape->type = 'rect';
+                $shape->startpoint = explode(',', $parts[0]);
+                $shape->dimensions = explode(',', $parts[1]);
+
+                $correctmarkers['shapes'][] = $shape;
+
+            } else if ($question->places[$key]->shape instanceof \qtype_ddmarker_shape_circle) {
+
+                $coords = $question->places[$key]->coords;
+                $parts = explode(';', $coords);
+
+                $shape = new \stdClass;
+                $shape->type = 'circle';
+                $shape->startpoint = explode(',', $parts[0]);
+                $shape->radius = $parts[1];
+
+                $correctmarkers['shapes'][] = $shape;
+
+            } else if ($question->places[$key]->shape instanceof \qtype_ddmarker_shape_polygon) {
+
+                $shape = new \stdClass;
+                $shape->type = 'polygon';
+                $shape->coords = $question->places[$key]->shape->coords;
+
+                $correctmarkers['shapes'][] = $shape;
+            }
+
+            $correctmarkers['points'][] = $obj;
+        }
+        $imagecorrectanswers = self::generate_image($question, $correctmarkers);
+
+        $mainadmin = get_admin();
+        $mainadminlang = $mainadmin->lang;
+
+        $dataurl = 'data:image/png;base64,' . base64_encode($imagecorrectanswers);
+        $content = $xpath->query('//div[@class="content"]');
+        foreach ($content as $contentdiv) {
+
+            $newnodetitle = new \lang_string('ddmarker_correctanswer_title', 'local_quizattemptexport_kassel', null, $mainadminlang);
+            $titlenode = $dom->createElement('h4', $newnodetitle);
+
+            $imagenode = $dom->createElement('img');
+            $imagenode->setAttribute('src', $dataurl);
+
+            $newnode = $dom->createElement('div');
+            $newnode->setAttribute('class', 'correctresult clearfix');
+            $newnode->appendChild($titlenode);
+            $newnode->appendChild($imagenode);
+
+            /** @var \DOMElement $contentdiv */
+            foreach ($contentdiv->childNodes as $childNode) {
+
+                /** @var \DOMElement $childNode */
+                if (false !== strpos($childNode->getAttribute('class'), 'comment')) {
+                    $childNode->parentNode->insertBefore($newnode, $childNode);
+                }
+            }
+        }
+
+        return domdocument_util::save_html($dom);
+    }
+
+    protected static function generate_image(\qtype_ddmarker_question $question, array $rendermarkers) {
+        global $CFG, $DB;
 
         // Start image generation.
         $fs = get_file_storage();
@@ -103,13 +202,56 @@ class ddmarker extends base {
 
         // Calculate a somewhat fitting font size from the drop backgrounds height.
         $calculatedfontsize = (int) ($bgfileinfo['height'] / 18);
+        if ($calculatedfontsize > 15) {
+            $calculatedfontsize = 15;
+        }
 
         // Load background image and marker icon into GD.
         $markerimg = imagecreatefrompng($CFG->dirroot . '/local/quizattemptexport_kassel/pix/crosshairs.png');
         $gdbgfile = imagecreatefromstring($bgfilecontent);
 
+        // Iterate the shapes, if any, and render them onto the background.
+        foreach ($rendermarkers['shapes'] as $shape) {
+
+            $drawcolor = imagecolorallocate($gdbgfile, 0, 0, 0);
+
+            if ($shape->type == 'circle') {
+
+                imageellipse(
+                    $gdbgfile,
+                    $shape->startpoint[0],
+                    $shape->startpoint[1],
+                    $shape->radius,
+                    $shape->radius,
+                    $drawcolor
+                );
+            } else if ($shape->type == 'rect') {
+
+                imagerectangle(
+                    $gdbgfile,
+                    $shape->startpoint[0],
+                    $shape->startpoint[1],
+                    $shape->startpoint[0] + $shape->dimensions[0],
+                    $shape->startpoint[1] + $shape->dimensions[1],
+                    $drawcolor
+                );
+            } else if ($shape->type == 'polygon') {
+
+                $pointsnum = 0;
+                $points = [];
+                foreach ($shape->coords as $coord) {
+
+                    $pointsnum++;
+                    $points[] = $coord[0];
+                    $points[] = $coord[1];
+                }
+
+                imagepolygon($gdbgfile, $points, $pointsnum, $drawcolor);
+            }
+        }
+
         // Iterate the markers positioned by the user and render them onto the background.
-        foreach ($rendermarkers as $marker) {
+        foreach ($rendermarkers['points'] as $marker) {
 
             $dropx = $marker->coords[0];
             $dropy = $marker->coords[1];
@@ -118,17 +260,13 @@ class ddmarker extends base {
             $text = $marker->text;
             $font = $CFG->dirroot . '/local/quizattemptexport_kassel/font/Open_Sans/OpenSans-Regular.ttf';
 
-            $margin = 1;
+            $margin = 3;
             $border = 1;
 
-            // Translate pt into px.
-            $fontpix = $calculatedfontsize * 1.10; // Slightly off, but better result than 1.33
-
             // Get dimensions for text box.
-            $textboxheight = $fontpix + 2 * $margin;
-            $textlength = strlen($text);
-            $textboxwidth = $fontpix * 0.7 * $textlength;
-            $textboxwidth += $margin * 2;
+            $textdimensions = self::calculateTextBox($text, $font, $calculatedfontsize, 0);
+            $textboxwidth = $textdimensions['width'] + ($margin * 2);
+            $textboxheight = $textdimensions['height']  + ($margin * 2);
 
             // Get starting positions for border rect and fill rect.
             $backgroundrect_x_from = $dropx;
@@ -143,15 +281,16 @@ class ddmarker extends base {
             $fillrect_y_to = $fillrect_y_from + $textboxheight;
 
             // Colors...
-            $bgcolor = imagecolorallocate($gdbgfile, 0, 0, 0);
-            $fgcolor = imagecolorallocate($gdbgfile, 255, 255, 255);
+            $bordercolor = imagecolorallocate($gdbgfile, 0, 0, 0);
+            $bgcolor = imagecolorallocatealpha($gdbgfile, 255, 255, 255, 30);
 
             // Draw text background.
-            imagefilledrectangle($gdbgfile, $backgroundrect_x_from, $backgroundrect_y_from, $backgroundrect_x_to, $backgroundrect_y_to, $bgcolor);
-            imagefilledrectangle($gdbgfile, $fillrect_x_from, $fillrect_y_from, $fillrect_x_to, $fillrect_y_to, $fgcolor);
+            imagesetthickness($gdbgfile, $border);
+            imagerectangle($gdbgfile, $backgroundrect_x_from, $backgroundrect_y_from, $backgroundrect_x_to, $backgroundrect_y_to, $bordercolor);
+            imagefilledrectangle($gdbgfile, $fillrect_x_from, $fillrect_y_from, $fillrect_x_to, $fillrect_y_to, $bgcolor);
 
             // Draw marker icon over text backgrounds
-            imagecopymerge($gdbgfile, $markerimg, $dropx - 7.5, $dropy - 7.5, 0, 0, 15, 15, 100);
+            imagecopyresampled($gdbgfile, $markerimg, $dropx - 7.5, $dropy - 7.5, 0, 0, 15, 15, 15, 15);
 
             // Draw text onto its background.
             $text_x = $fillrect_x_from + $margin;
@@ -170,18 +309,28 @@ class ddmarker extends base {
         imagedestroy($gdbgfile);
         imagedestroy($markerimg);
 
-        // Get DOM and XPath.
-        $dom = domdocument_util::initialize_domdocument($questionhtml);
-        $xpath = new \DOMXPath($dom);
+        return $imagecontent;
+    }
 
-        // Rewrite SRC of background image with our generated image as a base64 encoded data url.
-        $dataurl = 'data:image/png;base64,' . base64_encode($imagecontent);
-        $backgrounds = $xpath->query('//img[starts-with(@class, "dropbackground")]');
-        foreach ($backgrounds as $bg) {
-            /** @var \DOMElement $bg */
-            $bg->setAttribute('src', $dataurl);
-        }
+    protected static function calculateTextBox($text,$fontFile,$fontSize,$fontAngle) {
+        /************
+        simple function that calculates the *exact* bounding box (single pixel precision).
+        The function returns an associative array with these keys:
+        left, top:  coordinates you will pass to imagettftext
+        width, height: dimension of the image you have to create
+         *************/
+        $rect = imagettfbbox($fontSize,$fontAngle,$fontFile,$text);
+        $minX = min(array($rect[0],$rect[2],$rect[4],$rect[6]));
+        $maxX = max(array($rect[0],$rect[2],$rect[4],$rect[6]));
+        $minY = min(array($rect[1],$rect[3],$rect[5],$rect[7]));
+        $maxY = max(array($rect[1],$rect[3],$rect[5],$rect[7]));
 
-        return domdocument_util::save_html($dom);
+        return array(
+            "left"   => abs($minX) - 1,
+            "top"    => abs($minY) - 1,
+            "width"  => $maxX - $minX,
+            "height" => $maxY - $minY,
+            "box"    => $rect
+        );
     }
 }

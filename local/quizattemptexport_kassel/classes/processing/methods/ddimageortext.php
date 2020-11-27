@@ -94,7 +94,65 @@ class ddimageortext extends base {
 
             $dropzones[] = $obj;
         }
+        $imagecontent = self::generate_image($question, $dropzones);
 
+        // Get DOM and XPath.
+        $dom = domdocument_util::initialize_domdocument($questionhtml);
+        $xpath = new \DOMXPath($dom);
+
+        // Rewrite SRC of background image with our generated image as a base64 encoded data url.
+        $dataurl = 'data:image/png;base64,' . base64_encode($imagecontent);
+        $backgrounds = $xpath->query('//img[starts-with(@class, "dropbackground")]');
+        foreach ($backgrounds as $bg) {
+            /** @var \DOMElement $bg */
+            $bg->setAttribute('src', $dataurl);
+        }
+
+        // Generate image with correct answers.
+        $correctdrops = [];
+        foreach ($question->rightchoices as $key => $value) {
+            $obj = new \stdClass;
+            $obj->definition = $question->places[$key];
+            $obj->drop = $question->choices[$question->places[$key]->group][$value];
+
+            $correctdrops[] = $obj;
+        }
+        $imagecorrectanswers = self::generate_image($question, $correctdrops);
+
+        $mainadmin = get_admin();
+        $mainadminlang = $mainadmin->lang;
+
+        $dataurl = 'data:image/png;base64,' . base64_encode($imagecorrectanswers);
+        $content = $xpath->query('//div[@class="content"]');
+        foreach ($content as $contentdiv) {
+
+            $newnodetitle = new \lang_string('ddimageortext_correctanswer_title', 'local_quizattemptexport_kassel', null, $mainadminlang);
+            $titlenode = $dom->createElement('h4', $newnodetitle);
+
+            $imagenode = $dom->createElement('img');
+            $imagenode->setAttribute('src', $dataurl);
+
+            $newnode = $dom->createElement('div');
+            $newnode->setAttribute('class', 'correctresult clearfix');
+            $newnode->appendChild($titlenode);
+            $newnode->appendChild($imagenode);
+
+            /** @var \DOMElement $contentdiv */
+            foreach ($contentdiv->childNodes as $childNode) {
+
+                /** @var \DOMElement $childNode */
+                if (false !== strpos($childNode->getAttribute('class'), 'comment')) {
+                    $childNode->parentNode->insertBefore($newnode, $childNode);
+                }
+            }
+        }
+
+
+        return domdocument_util::save_html($dom);
+    }
+
+    protected static function generate_image(\qtype_ddimageortext_question $question, array $dropdefinitions) {
+        global $CFG, $DB;
 
         // Start image generation.
         $fs = get_file_storage();
@@ -109,10 +167,13 @@ class ddimageortext extends base {
 
         // Calculate a somewhat fitting font size from the drop backgrounds height.
         $calculatedfontsize = (int) ($bgfileinfo['height'] / 15);
+        if ($calculatedfontsize > 15) {
+            $calculatedfontsize = 15;
+        }
 
         // Load background into GD and render stuff onto it.
         $gdbgfile = imagecreatefromstring($bgfilecontent);
-        foreach ($dropzones as $dropzone) {
+        foreach ($dropdefinitions as $dropzone) {
 
             if (empty($dropzone->drop)) {
                 continue;
@@ -131,12 +192,40 @@ class ddimageortext extends base {
                 $text = $dropzone->drop->text;
                 $font = $CFG->dirroot . '/local/quizattemptexport_kassel/font/Open_Sans/OpenSans-Regular.ttf';
 
+                $margin = 3;
+                $border = 1;
+
+                // Get dimensions for text box.
+                $textdimensions = self::calculateTextBox($text, $font, $calculatedfontsize, 0);
+                $textboxwidth = $textdimensions['width'] + ($margin * 2);
+                $textboxheight = $textdimensions['height']  + ($margin * 2);
+
+                // Get starting positions for border rect and fill rect.
+                $backgroundrect_x_from = $dropx;
+                $backgroundrect_y_from = $dropy;
+
+                // Get end positions for rectangles.
+                $backgroundrect_x_to = $backgroundrect_x_from + ($textboxwidth + (2 * $border));
+                $backgroundrect_y_to = $backgroundrect_y_from + ($textboxheight + (2 * $border));
+
+                // Colors for text box.
+                $bordercolor = imagecolorallocate($gdbgfile, 0, 0, 0);
+                $bgcolor = imagecolorallocatealpha($gdbgfile, 255, 255, 255, 30);
+
+                // Draw text box.
+                imagesetthickness($gdbgfile, $border);
+                imagefilledrectangle($gdbgfile, $backgroundrect_x_from, $backgroundrect_y_from, $backgroundrect_x_to, $backgroundrect_y_to, $bgcolor);
+                imagerectangle($gdbgfile, $backgroundrect_x_from, $backgroundrect_y_from, $backgroundrect_x_to, $backgroundrect_y_to, $bordercolor);
+
+                // Render text onto text box.
                 // Need to offset y-value as it starts bottom left for text, instead of top left as for other stuff.
-                imagettftext($gdbgfile, $calculatedfontsize, 0, $dropx, $dropy + $calculatedfontsize, $textcolor, $font, $text);
+                $text_x = $backgroundrect_x_from + $border + $margin;
+                $text_y = $backgroundrect_y_from + $border + $margin + $calculatedfontsize;
+                imagettftext($gdbgfile, $calculatedfontsize, 0, $text_x, $text_y, $textcolor, $font, $text);
 
             } else {
 
-                // Get the drop file instance.
+                // Get the drop file.
                 $dropfileinstance = $fs->get_file_instance($dropfile);
                 $dropfilecontent = $dropfileinstance->get_content();
                 $imageinfo = $dropfileinstance->get_imageinfo();
@@ -160,18 +249,28 @@ class ddimageortext extends base {
         // Clean up.
         imagedestroy($gdbgfile);
 
-        // Get DOM and XPath.
-        $dom = domdocument_util::initialize_domdocument($questionhtml);
-        $xpath = new \DOMXPath($dom);
+        return $imagecontent;
+    }
 
-        // Rewrite SRC of background image with our generated image as a base64 encoded data url.
-        $dataurl = 'data:image/png;base64,' . base64_encode($imagecontent);
-        $backgrounds = $xpath->query('//img[starts-with(@class, "dropbackground")]');
-        foreach ($backgrounds as $bg) {
-            /** @var \DOMElement $bg */
-            $bg->setAttribute('src', $dataurl);
-        }
+    protected static function calculateTextBox($text,$fontFile,$fontSize,$fontAngle) {
+        /************
+        simple function that calculates the *exact* bounding box (single pixel precision).
+        The function returns an associative array with these keys:
+        left, top:  coordinates you will pass to imagettftext
+        width, height: dimension of the image you have to create
+         *************/
+        $rect = imagettfbbox($fontSize,$fontAngle,$fontFile,$text);
+        $minX = min(array($rect[0],$rect[2],$rect[4],$rect[6]));
+        $maxX = max(array($rect[0],$rect[2],$rect[4],$rect[6]));
+        $minY = min(array($rect[1],$rect[3],$rect[5],$rect[7]));
+        $maxY = max(array($rect[1],$rect[3],$rect[5],$rect[7]));
 
-        return domdocument_util::save_html($dom);
+        return array(
+            "left"   => abs($minX) - 1,
+            "top"    => abs($minY) - 1,
+            "width"  => $maxX - $minX,
+            "height" => $maxY - $minY,
+            "box"    => $rect
+        );
     }
 }

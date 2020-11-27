@@ -26,6 +26,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $string['attemptresult'] = '{$a->gradeachieved} von {$a->grademax} Punkten ({$a->gradepercent}%)';
+$string['ddimageortext_correctanswer_title'] = 'Korrekte Antworten';
+$string['ddmarker_correctanswer_title'] = 'Korrekte Antworten';
 $string['except_dirmissing'] = 'Directory missing: {$a}';
 $string['except_dirnotwritable'] = 'Directory is not writable: {$a}';
 $string['except_usernoidnumber'] = 'User does not have an idnumber. User id: {$a}';
