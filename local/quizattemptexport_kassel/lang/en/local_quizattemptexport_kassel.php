@@ -53,6 +53,7 @@ $string['setting_pdfgenerationtimeout'] = 'Timeout for PDF generation (seconds)'
 $string['setting_pdfgenerationtimeout_desc'] = 'Set the timeout in seconds that should apply for the generation of the PDF files. If the generation process has not finished after the given amount of time the process will be cancelled. Set a value of 0 to deactivate the timeout.';
 $string['setting_theme'] = 'Theme for export';
 $string['setting_theme_desc'] = 'Choose the moodle theme that should be used as the base styling when exporting quiz attempts. It is recommended to use one of the base themes that come bundled with moodle as using custom themes may lead to undesired results.';
+$string['task_generate_pdf_name'] = 'Generate attempt PDFs';
 $string['template_usersattemptslist_noattempts'] = 'Could not find any attempts for this quiz.';
 $string['template_usersattemptslist_nofiles'] = 'Could not find any files for this attempt.';
 $string['template_usersattemptslist_attemptfrom'] = 'Attempt from';

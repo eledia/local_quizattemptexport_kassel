@@ -15,19 +15,24 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Plugin info and version.
+ * Definition of cron tasks.
  *
  * @package    local_quizattemptexport_kassel
  * @author     Ralf Wiederhold <ralf.wiederhold@eledia.de>
- * @copyright  Ralf Wiederhold 2020
+ * @copyright  2020 Ralf Wiederhold
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2020112602;
-$plugin->requires  = 2020061501;
-$plugin->component = 'local_quizattemptexport_kassel';
-$plugin->dependencies = array(
-    'mod_quiz'  => 2020061500,
-);
+$tasks = [
+    [
+        'classname' => 'local_quizattemptexport_kassel\task\generate_pdf',
+        'blocking' => 0,
+        'minute' => '*/3',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+];

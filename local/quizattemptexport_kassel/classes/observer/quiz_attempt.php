@@ -25,22 +25,20 @@
 
 namespace local_quizattemptexport_kassel\observer;
 
-use local_quizattemptexport_kassel\export_attempt;
+use local_quizattemptexport_kassel\task\generate_pdf;
 
 defined('MOODLE_INTERNAL') || die();
 
 class quiz_attempt {
 
     public static function handle_submitted(\mod_quiz\event\attempt_submitted $event) {
+        global $DB;
 
         $exportenabled = get_config('local_quizattemptexport_kassel', 'autoexport');
         if ($exportenabled) {
 
             $event_data = $event->get_data();
-            $attempt = \quiz_attempt::create($event_data['objectid']);
-
-            $export = new export_attempt($attempt);
-            $export->export_pdf();
+            generate_pdf::add_attempt_to_queue($event_data['objectid']);
         }
     }
 }
