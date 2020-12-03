@@ -85,10 +85,16 @@ class ddmarker extends base {
             foreach ($groupchoices as $key => $option) {
 
                 if (!empty($userdrops['c' . $key])) {
-                    $obj = new \stdClass;
-                    $obj->text = $option->text;
-                    $obj->coords = explode(',', $userdrops['c' . $key]);
-                    $rendermarkers['points'][] = $obj;
+
+                    // The drop construct might contain multiple coords delimited by ";". If
+                    // it does not, this will create an array with a single element...
+                    $multicoords = explode(';', $userdrops['c' . $key]);
+                    foreach ($multicoords as $coords) {
+                        $obj = new \stdClass;
+                        $obj->text = $option->text;
+                        $obj->coords = explode(',', $coords);
+                        $rendermarkers['points'][] = $obj;
+                    }
                 }
             }
         }

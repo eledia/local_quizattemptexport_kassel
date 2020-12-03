@@ -54,8 +54,6 @@ class essay extends base {
     public static function process(string $questionhtml, \quiz_attempt $attempt, int $slot): string {
         global $DB;
 
-        //echo $questionhtml;exit;
-
         // Get DOM and XPath.
         $dom = domdocument_util::initialize_domdocument($questionhtml);
         $xpath = new \DOMXPath($dom);
