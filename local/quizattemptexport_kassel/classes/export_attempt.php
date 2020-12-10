@@ -119,12 +119,12 @@ class export_attempt {
             throw new \moodle_exception('except_dirmissing', 'local_quizattemptexport_kassel', '', $exportdir);
         }
 
-        /*
-        // TODO Only one central download directory for now.
-        $course = $this->attempt_obj->get_course();
-        $coursename = clean_param($course->fullname, PARAM_SAFEDIR);
 
-        $dirname = $course->id . '_' . $coursename;
+        $course = $this->attempt_obj->get_course();
+        //$coursename = clean_param($course->fullname, PARAM_SAFEDIR);
+        //$dirname = $course->id . '_' . $coursename;
+
+        $dirname = $course->id;
         $exportpath = $exportdir . '/' . $dirname;
 
         if (!is_dir($exportpath)) {
@@ -134,8 +134,6 @@ class export_attempt {
         }
 
         return $exportpath;
-        */
-        return $exportdir;
     }
 
 
@@ -231,7 +229,7 @@ class export_attempt {
         file_put_contents($localfilepath, $tempfilecontent);
 
         // Debug output...
-        file_put_contents($localfilepath . '.html', $html);
+        //file_put_contents($localfilepath . '.html', $html);
 
 
         // Write file into moodle file system for web access to the files.
