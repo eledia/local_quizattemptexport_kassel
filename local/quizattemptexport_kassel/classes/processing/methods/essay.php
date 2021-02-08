@@ -67,10 +67,10 @@ class essay extends base {
             $newnode = $dom->createElement('div');
             $newnode->setAttribute('class', 'qtype_essay_editor qtype_essay_response readonly'); // Using classes from the HTML-editor display mode.
 
-            // Create a "pre" to encapsulate the textarea textcontent and append it.
-            $prenode = $dom->createElement('pre');
-            $prenode->textContent = $ta->textContent;
-            $newnode->appendChild($prenode);
+            // Create a dom fragment, append text with line breaks and append fragment to div.
+            $fragment = $dom->createDocumentFragment();
+            $fragment->appendXML(nl2br($ta->textContent));
+            $newnode->appendChild($fragment);
 
             // Replace the textarea with the new div.
             $taparent = $ta->parentNode;
