@@ -61,3 +61,7 @@ $string['template_usersattemptslist_nofiles'] = 'Could not find any files for th
 $string['template_usersattemptslist_attemptfrom'] = 'Attempt from';
 $string['template_usersattemptslist_reexportattempttitle'] = 'Export attempt again';
 $string['template_usersattemptslist_exportall'] = 'Re-export all attempts within this quiz instance';
+
+$string['envcheck_execfailed'] = 'Error when trying to execute CLI call.';
+$string['envcheck_sharedlibsmissing'] = 'The binary is missing shared libraries: {$a}';
+$string['envcheck_success'] = 'The environment check succeeded. All dependencies are met.';
