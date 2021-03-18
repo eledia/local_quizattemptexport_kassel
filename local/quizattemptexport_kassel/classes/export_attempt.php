@@ -205,7 +205,7 @@ class export_attempt {
         // Quiz instance name
         $cm = $this->attempt_obj->get_cm();
         $instance = $DB->get_record('quiz', ['id' => $cm->instance]);
-        $quizname = $instance->name;
+        $quizname = clean_param($instance->name, PARAM_FILE);
 
         // The users login name.
         $username = $this->user_rec->username;
