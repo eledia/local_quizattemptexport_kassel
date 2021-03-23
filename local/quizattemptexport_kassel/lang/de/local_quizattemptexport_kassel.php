@@ -61,3 +61,7 @@ $string['template_usersattemptslist_nofiles'] = 'Für diesen Versuch konnten kei
 $string['template_usersattemptslist_attemptfrom'] = 'Versuch vom';
 $string['template_usersattemptslist_reexportattempttitle'] = 'Versuch erneut exportieren';
 $string['template_usersattemptslist_exportall'] = 'Alle Versuche in dieser Quizinstanz erneut exportieren';
+
+$string['envcheck_execfailed'] = 'Problem beim Versuch einen CLI Aufruf abzusetzen.';
+$string['envcheck_sharedlibsmissing'] = 'Dem enthaltenen Binary fehlen shared Libraries: {$a}';
+$string['envcheck_success'] = 'Alle Voraussetzungen erfüllt.';
