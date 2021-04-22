@@ -288,7 +288,6 @@ class generate_attempt_html {
             }
 
             div.que {
-                page-break-inside: avoid;
                 page-break-before: always;
                 border-style: solid;
                 border-width: 1px;
@@ -362,6 +361,7 @@ class generate_attempt_html {
              div.formulation,
              div.correctresult, /* Added manually in processing methods */
              div.history {
+                page-break-inside: avoid;
                 border: 1px solid #000;
                 margin: 10px 0;
                 padding: 10px;
@@ -374,6 +374,14 @@ class generate_attempt_html {
              div.history h4 {
                 margin: 0 0 10px 0;
              }
+             
+             /*
+                Make sure images do not exceed pdf width.
+              */
+             img {
+                max-width: 100%;
+             }
+             
         </style>';
     }
 

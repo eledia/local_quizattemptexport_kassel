@@ -83,7 +83,8 @@ class processor {
 
             $imgsrc = $img->getAttribute('src');
             $parts = explode('pluginfile.php/', $imgsrc);
-            $filepathargs = $parts[1];
+            $parts = explode('?', $parts[1]); // Remove any query params.
+            $filepathargs = $parts[0];
 
             $fileargs = explode('/', $filepathargs);
             $contextid = array_shift($fileargs);

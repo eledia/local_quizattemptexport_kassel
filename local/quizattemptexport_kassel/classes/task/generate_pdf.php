@@ -71,7 +71,7 @@ class generate_pdf extends \core\task\scheduled_task {
             mtrace('Could not gain lock. Exiting.');
             return;
         }
-        sleep(20);
+
         mtrace('Lock gained.');
         mtrace('Choosing attempts to export.');
 
