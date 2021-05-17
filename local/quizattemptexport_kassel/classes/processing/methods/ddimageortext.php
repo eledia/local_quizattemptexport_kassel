@@ -171,8 +171,18 @@ class ddimageortext extends base {
             $calculatedfontsize = 15;
         }
 
-        // Load background into GD and render stuff onto it.
+        // Load background into GD.
         $gdbgfile = imagecreatefromstring($bgfilecontent);
+
+        // Defining some data used in the following calculations.
+        $font = $CFG->dirroot . '/local/quizattemptexport_kassel/font/Open_Sans/OpenSans-Regular.ttf';
+        $margin = 3;
+        $border = 1;
+
+        // Iterating all drops and calculating dimensions.
+        $calculateddrops = [];
+        $largest_x = 0;
+        $largest_y = 0;
         foreach ($dropdefinitions as $dropzone) {
 
             if (empty($dropzone->drop)) {
@@ -188,12 +198,9 @@ class ddimageortext extends base {
             $dropfile = $DB->get_record_select('files', $select, $params);
             if (empty($dropfile)) {
 
+                // Define text data.
                 $textcolor = imagecolorallocate($gdbgfile, 0, 0, 0);
-                $text = $dropzone->drop->text;
-                $font = $CFG->dirroot . '/local/quizattemptexport_kassel/font/Open_Sans/OpenSans-Regular.ttf';
-
-                $margin = 3;
-                $border = 1;
+                $text = str_replace(['<br>', '<br/>', '<br />'], ["\n", "\n", "\n"], $dropzone->drop->text);
 
                 // Get dimensions for text box.
                 $textdimensions = self::calculateTextBox($text, $font, $calculatedfontsize, 0);
@@ -208,20 +215,30 @@ class ddimageortext extends base {
                 $backgroundrect_x_to = $backgroundrect_x_from + ($textboxwidth + (2 * $border));
                 $backgroundrect_y_to = $backgroundrect_y_from + ($textboxheight + (2 * $border));
 
-                // Colors for text box.
-                $bordercolor = imagecolorallocate($gdbgfile, 0, 0, 0);
-                $bgcolor = imagecolorallocatealpha($gdbgfile, 255, 255, 255, 30);
-
-                // Draw text box.
-                imagesetthickness($gdbgfile, $border);
-                imagefilledrectangle($gdbgfile, $backgroundrect_x_from, $backgroundrect_y_from, $backgroundrect_x_to, $backgroundrect_y_to, $bgcolor);
-                imagerectangle($gdbgfile, $backgroundrect_x_from, $backgroundrect_y_from, $backgroundrect_x_to, $backgroundrect_y_to, $bordercolor);
-
-                // Render text onto text box.
+                // Calculate text position.
                 // Need to offset y-value as it starts bottom left for text, instead of top left as for other stuff.
                 $text_x = $backgroundrect_x_from + $border + $margin;
                 $text_y = $backgroundrect_y_from + $border + $margin + $calculatedfontsize;
-                imagettftext($gdbgfile, $calculatedfontsize, 0, $text_x, $text_y, $textcolor, $font, $text);
+
+                // Gather drop data.
+                $drop = new \stdClass;
+                $drop->type = 'text';
+                $drop->bgrect_x_from = $backgroundrect_x_from;
+                $drop->bgrect_x_to = $backgroundrect_x_to;
+                $drop->bgrect_y_from = $backgroundrect_y_from;
+                $drop->bgrect_y_to = $backgroundrect_y_to;
+                $drop->text_y = $text_y;
+                $drop->text_x = $text_x;
+                $drop->text = $text;
+                $calculateddrops[] = $drop;
+
+                // Check if dimensions exceed current maximum.
+                if ($backgroundrect_x_to > $largest_x) {
+                    $largest_x = $backgroundrect_x_to;
+                }
+                if ($backgroundrect_y_to > $largest_y) {
+                    $largest_y = $backgroundrect_y_to;
+                }
 
             } else {
 
@@ -230,12 +247,74 @@ class ddimageortext extends base {
                 $dropfilecontent = $dropfileinstance->get_content();
                 $imageinfo = $dropfileinstance->get_imageinfo();
 
-                // Load into GD.
-                $gddropfile = imagecreatefromstring($dropfilecontent);
+                // Gather drop data.
+                $drop = new \stdClass;
+                $drop->type = 'image';
+                $drop->image_x = $dropx;
+                $drop->image_y = $dropy;
+                $drop->image_width = $imageinfo['width'];
+                $drop->image_height = $imageinfo['height'];
+                $drop->imagecontent = $dropfilecontent;
+                $calculateddrops[] = $drop;
+
+                // Calculate dimensions.
+                $stop_x = $dropx + $imageinfo['width'];
+                $stop_y = $dropy + $imageinfo['height'];
+
+                // Check if dimensions exceed current maximum.
+                if ($stop_x > $largest_x) {
+                    $largest_x = $stop_x;
+                }
+                if ($stop_y > $largest_y) {
+                    $largest_y = $stop_y;
+                }
+            }
+        }
+
+        // Check if the boxes we want to render exceed the available background area. Create a new background
+        // with appropriate dimensions if necessary.
+        if ($largest_y > $bgfileinfo['height'] || $largest_x > $bgfileinfo['width']) {
+
+            $newbg_height = $bgfileinfo['height'];
+            if ($largest_y > $bgfileinfo['height']) {
+                $newbg_height = $largest_y + 3;
+            }
+            $newbg_width = $bgfileinfo['width'];
+            if ($largest_x > $bgfileinfo['width']) {
+                $newbg_width = $largest_x + 3;
+            }
+
+            $tempimg = imagecreatetruecolor($newbg_width, $newbg_height);
+            $bgcolor = imagecolorallocate($tempimg, 255, 255, 255);
+            imagefilledrectangle($tempimg, 0, 0, $newbg_width, $newbg_height, $bgcolor);
+            imagecopyresampled($tempimg, $gdbgfile, 0, 0, 0, 0, $bgfileinfo['width'], $bgfileinfo['height'], $bgfileinfo['width'], $bgfileinfo['height']);
+            imagedestroy($gdbgfile);
+            $gdbgfile = $tempimg;
+        }
+
+        foreach ($calculateddrops as $drop) {
+
+            if ($drop->type == 'image') {
+
+                // Load drop file into GD.
+                $gddropfile = imagecreatefromstring($drop->imagecontent);
 
                 // Render onto background and clean it up.
-                imagecopymerge($gdbgfile, $gddropfile, $dropx, $dropy, 0, 0, $imageinfo['width'], $imageinfo['height'], 100);
+                imagecopymerge($gdbgfile, $gddropfile, $drop->image_x, $drop->image_y, 0, 0, $drop->image_width, $drop->image_height, 100);
                 imagedestroy($gddropfile);
+            } else {
+
+                // Define colors for text box.
+                $bordercolor = imagecolorallocate($gdbgfile, 0, 0, 0);
+                $bgcolor = imagecolorallocatealpha($gdbgfile, 255, 255, 255, 30);
+
+                // Draw text box.
+                imagesetthickness($gdbgfile, $border);
+                imagefilledrectangle($gdbgfile, $drop->bgrect_x_from, $drop->bgrect_y_from, $drop->bgrect_x_to, $drop->bgrect_y_to, $bgcolor);
+                imagerectangle($gdbgfile, $drop->bgrect_x_from, $drop->bgrect_y_from, $drop->bgrect_x_to, $drop->bgrect_y_to, $bordercolor);
+
+                // Render text onto text box.
+                imagettftext($gdbgfile, $calculatedfontsize, 0, $drop->text_x, $drop->text_y, $textcolor, $font, $drop->text);
             }
         }
 

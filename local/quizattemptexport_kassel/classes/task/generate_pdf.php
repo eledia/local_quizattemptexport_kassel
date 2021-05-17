@@ -49,7 +49,7 @@ class generate_pdf extends \core\task\scheduled_task {
     const STATUS_PROCESSED = 2;
     const STATUS_ERROR = 3;
 
-    const ATTEMPTS_PER_RUN = 9;
+    const ATTEMPTS_PER_RUN = 100;
 
     public function get_name() {
         return get_string('task_generate_pdf_name', 'local_quizattemptexport_kassel');

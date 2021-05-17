@@ -256,52 +256,97 @@ class ddmarker extends base {
             }
         }
 
-        // Iterate the markers positioned by the user and render them onto the background.
+        // Define values used in the following calculations.
+        $font = $CFG->dirroot . '/local/quizattemptexport_kassel/font/Open_Sans/OpenSans-Regular.ttf';
+        $margin = 3;
+        $border = 1;
+
+        // Iterate the markers positioned by the user and calculate all required dimensions.
+        $textboxes = [];
+        $largest_x = 0;
+        $largest_y = 0;
         foreach ($rendermarkers['points'] as $marker) {
 
             $dropx = $marker->coords[0];
             $dropy = $marker->coords[1];
-
-            $textcolor = imagecolorallocate($gdbgfile, 0, 0, 0);
-            $text = $marker->text;
-            $font = $CFG->dirroot . '/local/quizattemptexport_kassel/font/Open_Sans/OpenSans-Regular.ttf';
-
-            $margin = 3;
-            $border = 1;
+            $text = str_replace(['<br>', '<br/>', '<br />'], ["\n", "\n", "\n"], $marker->text);
 
             // Get dimensions for text box.
             $textdimensions = self::calculateTextBox($text, $font, $calculatedfontsize, 0);
             $textboxwidth = $textdimensions['width'] + ($margin * 2);
             $textboxheight = $textdimensions['height']  + ($margin * 2);
 
-            // Get starting positions for border rect and fill rect.
+            // Get starting position for border rect.
             $backgroundrect_x_from = $dropx;
             $backgroundrect_y_from = $dropy;
-            $fillrect_x_from = $backgroundrect_x_from + $border;
-            $fillrect_y_from = $backgroundrect_y_from + $border;
 
-            // Get end positions for rectangles.
+            // Get end position for rectangle.
             $backgroundrect_x_to = $backgroundrect_x_from + ($textboxwidth + (2 * $border));
             $backgroundrect_y_to = $backgroundrect_y_from + ($textboxheight + (2 * $border));
-            $fillrect_x_to = $fillrect_x_from + $textboxwidth;
-            $fillrect_y_to = $fillrect_y_from + $textboxheight;
+
+            // Get starting position for text.
+            $text_x = $backgroundrect_x_from + $border + $margin;
+            $text_y = $backgroundrect_y_from + $border + $margin + $calculatedfontsize;
+
+            // Save coordinates and related data into object.
+            $coords = new \stdClass;
+            $coords->bgrect_x_from = $backgroundrect_x_from;
+            $coords->bgrect_y_from = $backgroundrect_y_from;
+            $coords->bgrect_x_to = $backgroundrect_x_to;
+            $coords->bgrect_y_to = $backgroundrect_y_to;
+            $coords->text_x = $text_x;
+            $coords->text_y = $text_y;
+            $coords->text = $text;
+            $textboxes[] = $coords;
+
+            // Check for largest dimensions.
+            if ($backgroundrect_x_to > $largest_x) {
+                $largest_x = $backgroundrect_x_to;
+            }
+            if ($backgroundrect_y_to > $largest_y) {
+                $largest_y = $backgroundrect_y_to;
+            }
+        }
+
+        // Check if our text boxes exceed the available background area. Create a new background
+        // with appropriate dimensions if necessary.
+        if ($largest_y > $bgfileinfo['height'] || $largest_x > $bgfileinfo['width']) {
+
+            $newbg_height = $bgfileinfo['height'];
+            if ($largest_y > $bgfileinfo['height']) {
+                $newbg_height = $largest_y + 3;
+            }
+            $newbg_width = $bgfileinfo['width'];
+            if ($largest_x > $bgfileinfo['width']) {
+                $newbg_width = $largest_x + 3;
+            }
+
+            $tempimg = imagecreatetruecolor($newbg_width, $newbg_height);
+            $bgcolor = imagecolorallocate($tempimg, 255, 255, 255);
+            imagefilledrectangle($tempimg, 0, 0, $newbg_width, $newbg_height, $bgcolor);
+            imagecopyresampled($tempimg, $gdbgfile, 0, 0, 0, 0, $bgfileinfo['width'], $bgfileinfo['height'], $bgfileinfo['width'], $bgfileinfo['height']);
+            imagedestroy($gdbgfile);
+            $gdbgfile = $tempimg;
+        }
+
+        // Render the calculated text boxes onto the background.
+        foreach ($textboxes as $box) {
 
             // Colors...
+            $textcolor = imagecolorallocate($gdbgfile, 0, 0, 0);
             $bordercolor = imagecolorallocate($gdbgfile, 0, 0, 0);
             $bgcolor = imagecolorallocatealpha($gdbgfile, 255, 255, 255, 30);
 
             // Draw text background.
             imagesetthickness($gdbgfile, $border);
-            imagerectangle($gdbgfile, $backgroundrect_x_from, $backgroundrect_y_from, $backgroundrect_x_to, $backgroundrect_y_to, $bordercolor);
-            imagefilledrectangle($gdbgfile, $fillrect_x_from, $fillrect_y_from, $fillrect_x_to, $fillrect_y_to, $bgcolor);
+            imagefilledrectangle($gdbgfile, $box->bgrect_x_from, $box->bgrect_y_from, $box->bgrect_x_to, $box->bgrect_y_to, $bgcolor);
+            imagerectangle($gdbgfile, $box->bgrect_x_from, $box->bgrect_y_from, $box->bgrect_x_to, $box->bgrect_y_to, $bordercolor);
 
             // Draw marker icon over text backgrounds
-            imagecopyresampled($gdbgfile, $markerimg, $dropx - 7.5, $dropy - 7.5, 0, 0, 15, 15, 15, 15);
+            imagecopyresampled($gdbgfile, $markerimg, $box->bgrect_x_from - 7.5, $box->bgrect_y_from - 7.5, 0, 0, 15, 15, 15, 15);
 
             // Draw text onto its background.
-            $text_x = $fillrect_x_from + $margin;
-            $text_y = $fillrect_y_from + $margin + $calculatedfontsize;
-            imagettftext($gdbgfile, $calculatedfontsize, 0, $text_x, $text_y, $textcolor, $font, $text);
+            imagettftext($gdbgfile, $calculatedfontsize, 0, $box->text_x, $box->text_y, $textcolor, $font, $box->text);
         }
 
         // We only need the image content anyway, so just collect it from the output buffer
