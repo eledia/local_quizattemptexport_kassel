@@ -39,38 +39,46 @@ class check {
 
         } else {
 
-            // Use "ldd" to check for any missing shared libraries for the binary contained within the plugin. If any
-            // libs are missing set status to false and provide list of missing libs using the feedback string.
-
             $binarypath = $CFG->dirroot . '/local/quizattemptexport_kassel/vendor/h4cc/wkhtmltopdf-amd64/bin/wkhtmltopdf-amd64';
-            exec('ldd ' . $binarypath, $output, $return);
 
-            if ($return != 0) {
-
+            // Check if binary is executable. Should be executable on GIT install, needs to be made executable on manual installation...
+            if (!is_executable($binarypath)) {
                 $result->setStatus(false);
-                $result->setFeedbackStr(['envcheck_execfailed', 'local_quizattemptexport_kassel']);
+                $result->setFeedbackStr(['envcheck_notexecutable', 'local_quizattemptexport_kassel']);
 
             } else {
 
-                $missing = [];
-                foreach ($output as $line) {
+                // Use "ldd" to check for any missing shared libraries for the binary contained within the plugin. If any
+                // libs are missing set status to false and provide list of missing libs using the feedback string.
+                exec('ldd ' . $binarypath, $output, $return);
 
-                    if (false !== strpos($line, 'not found')) {
+                if ($return != 0) {
 
-                        $parts = explode('=>', $line);
-                        $missing[] = trim($parts[0]);
-                    }
-                }
-
-                if (!empty($missing)) {
-
-                    $missing = implode(', ', $missing);
                     $result->setStatus(false);
-                    $result->setFeedbackStr(['envcheck_sharedlibsmissing', 'local_quizattemptexport_kassel', $missing]);
+                    $result->setFeedbackStr(['envcheck_execfailed', 'local_quizattemptexport_kassel']);
+
                 } else {
 
-                    $result->setStatus(true);
-                    $result->setFeedbackStr(['envcheck_success', 'local_quizattemptexport_kassel']);
+                    $missing = [];
+                    foreach ($output as $line) {
+
+                        if (false !== strpos($line, 'not found')) {
+
+                            $parts = explode('=>', $line);
+                            $missing[] = trim($parts[0]);
+                        }
+                    }
+
+                    if (!empty($missing)) {
+
+                        $missing = implode(', ', $missing);
+                        $result->setStatus(false);
+                        $result->setFeedbackStr(['envcheck_sharedlibsmissing', 'local_quizattemptexport_kassel', $missing]);
+                    } else {
+
+                        $result->setStatus(true);
+                        $result->setFeedbackStr(['envcheck_success', 'local_quizattemptexport_kassel']);
+                    }
                 }
             }
         }

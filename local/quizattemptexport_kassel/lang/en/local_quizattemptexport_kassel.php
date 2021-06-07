@@ -63,5 +63,6 @@ $string['template_usersattemptslist_reexportattempttitle'] = 'Export attempt aga
 $string['template_usersattemptslist_exportall'] = 'Re-export all attempts within this quiz instance';
 
 $string['envcheck_execfailed'] = 'Error when trying to execute CLI call.';
+$string['envcheck_notexecutable'] = 'The binary contained in the plugin needs to be executable for the webserver user. Check the readme for details.';
 $string['envcheck_sharedlibsmissing'] = 'The binary is missing shared libraries: {$a}';
 $string['envcheck_success'] = 'The environment check succeeded. All dependencies are met.';

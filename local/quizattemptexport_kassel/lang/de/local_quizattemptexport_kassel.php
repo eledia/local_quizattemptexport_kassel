@@ -63,5 +63,6 @@ $string['template_usersattemptslist_reexportattempttitle'] = 'Versuch erneut exp
 $string['template_usersattemptslist_exportall'] = 'Alle Versuche in dieser Quizinstanz erneut exportieren';
 
 $string['envcheck_execfailed'] = 'Problem beim Versuch einen CLI Aufruf abzusetzen.';
+$string['envcheck_notexecutable'] = 'Das im Plugin enthaltene Binary muss durch den Webserver-User ausführbar sein. Details sind in der Readme beschrieben.';
 $string['envcheck_sharedlibsmissing'] = 'Dem enthaltenen Binary fehlen shared Libraries: {$a}';
 $string['envcheck_success'] = 'Alle Voraussetzungen erfüllt.';
