@@ -123,6 +123,7 @@ class ddmarker extends base {
             $obj = new \stdClass;
             $obj->text = $question->choices[$question->places[$key]->group][$value]->text;
             $obj->coords = $question->places[$key]->shape->center_point();
+            $obj->shape = null;
 
             if ($question->places[$key]->shape instanceof \qtype_ddmarker_shape_rectangle) {
 
@@ -135,6 +136,7 @@ class ddmarker extends base {
                 $shape->dimensions = explode(',', $parts[1]);
 
                 $correctmarkers['shapes'][] = $shape;
+                $obj->shape = $shape;
 
             } else if ($question->places[$key]->shape instanceof \qtype_ddmarker_shape_circle) {
 
@@ -147,6 +149,7 @@ class ddmarker extends base {
                 $shape->radius = $parts[1];
 
                 $correctmarkers['shapes'][] = $shape;
+                $obj->shape = $shape;
 
             } else if ($question->places[$key]->shape instanceof \qtype_ddmarker_shape_polygon) {
 
@@ -155,11 +158,12 @@ class ddmarker extends base {
                 $shape->coords = $question->places[$key]->shape->coords;
 
                 $correctmarkers['shapes'][] = $shape;
+                $obj->shape = $shape;
             }
 
             $correctmarkers['points'][] = $obj;
         }
-        $imagecorrectanswers = self::generate_image($question, $correctmarkers);
+        $imagecorrectanswers = self::generate_image($question, $correctmarkers, true);
 
         $mainadmin = get_admin();
         $mainadminlang = $mainadmin->lang;
@@ -192,7 +196,7 @@ class ddmarker extends base {
         return domdocument_util::save_html($dom);
     }
 
-    protected static function generate_image(\qtype_ddmarker_question $question, array $rendermarkers) {
+    protected static function generate_image(\qtype_ddmarker_question $question, array $rendermarkers, bool $avoidoverlap = false) {
         global $CFG, $DB;
 
         // Start image generation.
@@ -263,8 +267,6 @@ class ddmarker extends base {
 
         // Iterate the markers positioned by the user and calculate all required dimensions.
         $textboxes = [];
-        $largest_x = 0;
-        $largest_y = 0;
         foreach ($rendermarkers['points'] as $marker) {
 
             $dropx = $marker->coords[0];
@@ -297,14 +299,122 @@ class ddmarker extends base {
             $coords->text_x = $text_x;
             $coords->text_y = $text_y;
             $coords->text = $text;
+            $coords->shape = !empty($marker->shape) ? $marker->shape : null; // Only required if $avoidoverlap is used.
             $textboxes[] = $coords;
+        }
 
-            // Check for largest dimensions.
-            if ($backgroundrect_x_to > $largest_x) {
-                $largest_x = $backgroundrect_x_to;
+        // If the $avoidoverlap option is enabled we need to check if there is overlap
+        // between text boxes that share a shape and try to reposition those boxes in
+        // a way that they are still contained within their shape but have their overlap
+        // reduced as much as possible.
+        if ($avoidoverlap) {
+
+            // TODO polygon?
+            // TODO ellipse?
+
+            // Group text boxes by their containing shape.
+            $shapegroups = [];
+            foreach ($textboxes as $box) {
+
+                // Make sure the box definition contains a shape definition.
+                if (empty($box->shape)) {
+                    continue;
+                }
+
+                if ($box->shape->type == 'rect') {
+                    $matched = false;
+                    foreach ($shapegroups as $group) {
+                        if ($group->type == 'rect') {
+                            if (
+                                $group->startpoint[0] == $box->shape->startpoint[0]
+                                && $group->startpoint[1] == $box->shape->startpoint[1]
+                                && $group->dimensions[0] == $box->shape->dimensions[0]
+                                && $group->dimensions[1] == $box->shape->dimensions[1]
+                            ) {
+                                $group->boxes[] = $box;
+                                $matched = true;
+                            }
+                        }
+                    }
+
+                    if (!$matched) {
+                        $shapegroup = new \stdClass;
+                        $shapegroup->boxes = [$box];
+                        $shapegroup->startpoint = $box->shape->startpoint;
+                        $shapegroup->dimensions = $box->shape->dimensions;
+                        $shapegroup->type = $box->shape->type;
+                        $shapegroups[] = $shapegroup;
+                    }
+                }
             }
-            if ($backgroundrect_y_to > $largest_y) {
-                $largest_y = $backgroundrect_y_to;
+
+            // Iterate shape groups and check if we need to do anything.
+            foreach ($shapegroups as $group) {
+
+                if ($group->type == 'rect') {
+
+                    $margin = 10;
+                    $shapeheight = $group->dimensions[1];
+                    $aggregatedboxheights = 0;
+                    $boxcount = 0;
+
+                    // Aggregate box heights and count boxes.
+                    foreach ($group->boxes as $box) {
+                        $boxheight = $box->bgrect_y_to - $box->bgrect_y_from;
+                        $aggregatedboxheights += $boxheight;
+                        $boxcount++;
+                    }
+
+                    // Do we even have to fit more than one box?
+                    if ($boxcount <= 1) {
+                        continue;
+                    }
+
+                    // Calculate offset for new starting points of boxes.
+                    $aggregatedboxheights += $margin;
+                    $boxesoffset = floor(($shapeheight - $aggregatedboxheights) / $boxcount);
+
+                    // Reposition boxes.
+                    $new_start_x = $group->startpoint[0] + $margin;
+                    $new_start_y = $group->startpoint[1] + $margin;
+                    foreach ($group->boxes as $box) {
+
+                        // Calculate current dimensions / offsets.
+                        $boxheight = $box->bgrect_y_to - $box->bgrect_y_from;
+                        $boxwidth = $box->bgrect_x_to - $box->bgrect_x_from;
+                        $text_x_offset = $box->text_x - $box->bgrect_x_from;
+                        $text_y_offset = $box->text_y - $box->bgrect_y_from;
+
+                        // Calculate new dimensions.
+                        $box->bgrect_x_from = $new_start_x;
+                        $box->bgrect_y_from = $new_start_y;
+                        $box->bgrect_x_to = $new_start_x + $boxwidth;
+                        $box->bgrect_y_to = $new_start_y + $boxheight;
+                        $box->text_x = $new_start_x + $text_x_offset;
+                        $box->text_y = $new_start_y + $text_y_offset;
+
+                        // Calculate new start-y for next box.
+                        $new_start_y = $box->bgrect_y_to + $boxesoffset;
+                    }
+                }
+            }
+        }
+
+        // Sort textboxes by their x-coordinates to enforce rendering in a left-to-right fashion to
+        // avoid situations where the left side of a text box is overlapped by another box.
+        usort($textboxes, ['\local_quizattemptexport_kassel\processing\methods\ddmarker', 'sort_boxes_ltr']);
+
+        // Calculate largest x and y values so we may check if any of our boxes exceed the
+        // available background.
+        $largest_x = 0;
+        $largest_y = 0;
+        foreach ($textboxes as $box) {
+
+            if ($box->bgrect_x_to > $largest_x) {
+                $largest_x = $box->bgrect_x_to;
+            }
+            if ($box->bgrect_y_to > $largest_y) {
+                $largest_y = $box->bgrect_y_to;
             }
         }
 
@@ -383,5 +493,16 @@ class ddmarker extends base {
             "height" => $maxY - $minY,
             "box"    => $rect
         );
+    }
+
+    protected static function sort_boxes_ltr($a, $b) {
+
+        if ($a->bgrect_x_from < $b->bgrect_x_from) {
+            return -1;
+        } else if ($a->bgrect_x_from > $b->bgrect_x_from) {
+            return 1;
+        }
+
+        return 0;
     }
 }
