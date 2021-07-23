@@ -25,7 +25,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2021060700;
+$plugin->version = 2021072300;
 $plugin->requires  = 2020061501;
 $plugin->component = 'local_quizattemptexport_kassel';
 $plugin->dependencies = array(
