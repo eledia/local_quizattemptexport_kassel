@@ -15,19 +15,26 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Plugin info and version.
+ * Capability definitions.
  *
  * @package    local_quizattemptexport_kassel
  * @author     Ralf Wiederhold <ralf.wiederhold@eledia.de>
- * @copyright  Ralf Wiederhold 2020
+ * @copyright  Ralf Wiederhold 2021
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2021082601;
-$plugin->requires  = 2020061501;
-$plugin->component = 'local_quizattemptexport_kassel';
-$plugin->dependencies = array(
-    'mod_quiz'  => 2020061500,
-);
+$capabilities = [
+
+    'local/quizattemptexport_kassel:viewpdf' => [
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_MODULE
+    ],
+
+    'local/quizattemptexport_kassel:generatepdf' => [
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_MODULE
+    ],
+    
+];

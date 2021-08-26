@@ -42,10 +42,10 @@ $course = get_course($cm->course);
 
 // Check access.
 require_login($cm->course, false);
-$hasviewcap = has_capability('mod/quiz:viewreports', $context);
-$hasgradecap = has_capability('mod/quiz:grade', $context);
+$hasviewcap = has_capability('local/quizattemptexport_kassel:viewpdf', $context);
+$hasgradecap = has_capability('local/quizattemptexport_kassel:generatepdf', $context);
 if (!$hasviewcap && !$hasgradecap) {
-    $capability = 'mod/quiz:viewreports';
+    $capability = 'local/quizattemptexport_kassel:viewpdf';
     throw new required_capability_exception($context, $capability, 'nopermission', '');
 }
 
