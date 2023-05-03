@@ -15,9 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Postprocessing controller
+ * Controller for HTML postprocessing
  *
- * @package		local_quizattemptexport_kassel
+ * @package		local_quizattemptexport
  * @copyright	2020 Ralf Wiederhold
  * @author		Ralf Wiederhold <ralf.wiederhold@eledia.de>
  * @license    	http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -25,15 +25,16 @@
 
 namespace local_quizattemptexport_kassel\processing;
 
+
 defined('MOODLE_INTERNAL') || die();
 
 class processor {
 
     public static function execute(string $html, \quiz_attempt $attempt) {
-        global $CFG, $DB;
 
         $html = domdocument_util::prepare_html($html);
         $dom = domdocument_util::initialize_domdocument($html);
+        $additional_css = [];
 
         $xpath = new \DOMXPath($dom);
         $questions = $xpath->query('//div[starts-with(@class, "que ")]');
@@ -55,9 +56,12 @@ class processor {
             $output_html = '';
 
             /** @var \local_quizattemptexport_kassel\processing\methods\base $processingclass */
-            $processingclass = '\local_quizattemptexport_kassel\processing\methods\\' . $qtype;
+            $processingclass = '\local_quizattemptexport_kassel\processing\methods\qtype_' . $qtype;
             if (class_exists($processingclass)) {
                 $output_html = $processingclass::process($input_html, $attempt, $slot);
+                if (!isset($additional_css[$qtype])) {
+                    $additional_css[$qtype] = $processingclass::get_css();
+                }
             }
 
             if (!empty($output_html)) {
@@ -65,44 +69,111 @@ class processor {
             }
         }
 
+        // Return html and additional css as array.
+        return [$html, implode("\n\n", $additional_css)];
+    }
 
+    /**
+     * Transform any image contained within the content that is not already a data url
+     * into a data URL. This is necessary for local files served through moodle file
+     * system but will also avoid problems where wkhtmltopdf will not be able to load
+     * non-local files.
+     *
+     * @param string $html
+     * @return string
+     * @throws \dml_exception
+     */
+    public static function embed_images(string $html) {
+        global $CFG, $DB;
 
-        // Do generalized replacement of images that contain a pluginfile url.
         $dom = domdocument_util::initialize_domdocument($html);
         $xpath = new \DOMXPath($dom);
         $imgs = $xpath->query('//img');
         foreach ($imgs as $img) {
 
             /** @var \DOMElement $img */
+            $imgsrc = $img->getAttribute('src');
 
-            // Ignore image sources that don't contain "pluginfile.php". We probably don't need
-            // to handle those, and would probably don't know ow to handle them anyway.
-            if (false === strpos($img->getAttribute('src'), 'pluginfile.php')) {
+            // Ignore data urls.
+            if (0 === strpos($imgsrc, 'data:')) {
                 continue;
             }
 
-            $imgsrc = $img->getAttribute('src');
-            $parts = explode('pluginfile.php/', $imgsrc);
-            $parts = explode('?', $parts[1]); // Remove any query params.
-            $filepathargs = $parts[0];
+            $dataurl = '';
 
-            $fileargs = explode('/', $filepathargs);
-            $contextid = array_shift($fileargs);
-            $component = array_shift($fileargs);
-            $filearea = array_shift($fileargs);
+            // Check if the IMG elements SRC attribute contains a local file that likely requires
+            // authentication by checking if the URL starts with our WWWROOT and contains a path
+            // element that matches "pluginfile.php".
+            $urlparts = explode('/', $imgsrc);
+            if (0 === strpos($imgsrc, $CFG->wwwroot) && in_array('pluginfile.php', $urlparts)) {
 
-            $imgfilename = urldecode(array_pop($fileargs));
-            $itemid = array_pop($fileargs);
+                // Seems to be a local file likely requiring authentication, i.e. we need to get the file
+                // content from the moodle file system by using the relevant arguments contained
+                // within the URL.
+
+                $parts = explode('pluginfile.php/', $imgsrc);
+                $parts = explode('?', $parts[1]); // Remove any query params.
+                $filepathargs = $parts[0];
+
+                $fileargs = explode('/', $filepathargs);
+                $contextid = array_shift($fileargs);
+                $component = array_shift($fileargs);
+                $filearea = array_shift($fileargs);
+
+                $imgfilename = urldecode(array_pop($fileargs));
+                $itemid = array_pop($fileargs);
 
 
-            $filerec = $DB->get_record('files', ['component' => $component, 'filearea' => $filearea, 'itemid' => $itemid, 'filename' => $imgfilename, 'contextid' => $contextid]);
+                $filerec = $DB->get_record('files', ['component' => $component, 'filearea' => $filearea, 'itemid' => $itemid, 'filename' => $imgfilename, 'contextid' => $contextid]);
 
-            if (!empty($filerec)) {
-                $fs = get_file_storage();
-                $file = $fs->get_file_instance($filerec);
-                $imgcontent = $file->get_content();
-                $dataurl = 'data:'.$file->get_mimetype().';base64,' . base64_encode($imgcontent);
+                if (!empty($filerec)) {
+                    $fs = get_file_storage();
+                    $file = $fs->get_file_instance($filerec);
+                    $imgcontent = $file->get_content();
+                    $dataurl = 'data:' . $file->get_mimetype() . ';base64,' . base64_encode($imgcontent);
+                }
+
             } else {
+
+                // Not a local file that requires authentication. Simply load the image content
+                // from the URL if possible and build a data url from it.
+
+                $imgcontent = file_get_contents($imgsrc);
+                if (!empty($imgcontent)) {
+
+                    // Get the filename extension.
+                    $parts = explode('.', $imgsrc);
+                    $filetype = array_pop($parts);
+
+                    // Pretend that the filename extension "svg" actually indicates an SVG file
+                    // and handle the file content accordingly.
+                    if ($filetype == 'svg') {
+
+                        $dataurl = 'data:image/svg+xml;base64,' . base64_encode($imgcontent);
+
+                    } else {
+
+                        // Let GD decide if it wants to handle the file content. If it does, we will
+                        // save it as PNG and embed that one. IF GD does not like the content, we will
+                        // let the image default to our placeholder.
+                        if ($imgres = imagecreatefromstring($imgcontent)) {
+
+                            // Get PNG version of the file content.
+                            ob_start();
+                            imagepng($imgres);
+                            $imagecontent = ob_get_contents();
+                            ob_end_clean();
+                            imagedestroy($imgres);
+
+                            // Create data url.
+                            $dataurl = 'data:image/png;base64,' . base64_encode($imagecontent);
+                        }
+                    }
+                }
+            }
+
+            // Fallback to placeholder image.
+            if (empty($dataurl)) {
                 $imgcontent = file_get_contents($CFG->dirroot . '/local/quizattemptexport_kassel/pix/edit-delete.png');
                 $dataurl = 'data:image/png;base64,' . base64_encode($imgcontent);
             }
@@ -111,5 +182,21 @@ class processor {
         }
 
         return domdocument_util::save_html($dom);
+    }
+
+    /**
+     * This method looks for mathematical markup created by the ATTO editor which
+     * needs to be typeset using the MathJax JavaScript framework. Based on the
+     * amount of markup within the given HTML snippet, this method determines how
+     * large the JS processing delay should be that MathJax will require to fully
+     * typeset the math markup within the given HTML snippet before wkhtmltopdf
+     * may render the PDF.
+     *
+     * @param string $html
+     * @return int
+     */
+    public static function determine_mathjax_delay(string $html) {
+
+        return 500 * substr_count($html, 'filter_mathjaxloader_equation');
     }
 }

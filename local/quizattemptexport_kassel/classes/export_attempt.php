@@ -142,11 +142,11 @@ class export_attempt {
 
         // Generate the HTML content to be rendered into a PDF.
         $generator = new generate_attempt_html($this->page);
-        $html = $generator->generate($this->attempt_obj);
+        list($html, $mathjaxdelay) = $generator->generate($this->attempt_obj);
 
         // Set up some processing requirements.
         set_time_limit(0);
-        ob_start();// tcpdf doesnt like outputs here.
+        ob_start();// we don't like outputs here.
 
         // Generate temp file name for pdf generation.
         $tempexportfile = $CFG->tempdir . '/' . uuid::generate() . '.pdf';
@@ -163,7 +163,7 @@ class export_attempt {
         $timeout = null;
         if ($settingstimeout = get_config('local_quizattemptexport_kassel', 'pdfgenerationtimeout')) {
             $settingstimeout = (int) $settingstimeout;
-            if ($settingstimeout < 0) {
+            if ($settingstimeout <= 0) {
                 $settingstimeout = null;
             }
             $timeout = $settingstimeout;
@@ -182,6 +182,11 @@ class export_attempt {
             $snappy->setOption('images', true);
             $snappy->setOption('enable-local-file-access', true);
             $snappy->setOption('enable-external-links', true);
+
+            if ($mathjaxdelay) {
+                $snappy->setOption('javascript-delay', $mathjaxdelay);
+            }
+
             $snappy->setBinary($binarypath);
             $snappy->generateFromHtml($html, $tempexportfile);
 

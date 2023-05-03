@@ -1,94 +1,101 @@
-<?php return array (
-  'root' => 
-  array (
-    'pretty_version' => 'No version set (parsed as 1.0.0)',
-    'version' => '1.0.0.0',
-    'aliases' => 
-    array (
+<?php return array(
+    'root' => array(
+        'name' => '__root__',
+        'pretty_version' => 'dev-master',
+        'version' => 'dev-master',
+        'reference' => '21a4e8b1aa087778b2466f5d65c2b2043cfa80d2',
+        'type' => 'library',
+        'install_path' => __DIR__ . '/../../',
+        'aliases' => array(),
+        'dev' => true,
     ),
-    'reference' => NULL,
-    'name' => '__root__',
-  ),
-  'versions' => 
-  array (
-    '__root__' => 
-    array (
-      'pretty_version' => 'No version set (parsed as 1.0.0)',
-      'version' => '1.0.0.0',
-      'aliases' => 
-      array (
-      ),
-      'reference' => NULL,
+    'versions' => array(
+        '__root__' => array(
+            'pretty_version' => 'dev-master',
+            'version' => 'dev-master',
+            'reference' => '21a4e8b1aa087778b2466f5d65c2b2043cfa80d2',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../../',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'h4cc/wkhtmltopdf-amd64' => array(
+            'pretty_version' => '0.12.4',
+            'version' => '0.12.4.0',
+            'reference' => '4e2ab2d032a5d7fbe2a741de8b10b8989523c95b',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../h4cc/wkhtmltopdf-amd64',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'knplabs/knp-snappy' => array(
+            'pretty_version' => 'v1.4.2',
+            'version' => '1.4.2.0',
+            'reference' => 'b66f79334421c26d9c244427963fa2d92980b5d3',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../knplabs/knp-snappy',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'mathjax/mathjax' => array(
+            'pretty_version' => '2.7.9',
+            'version' => '2.7.9.0',
+            'reference' => '3b461438246adfcf67690795fcc0ae6dc4e335fe',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../mathjax/mathjax',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'monolog/monolog' => array(
+            'pretty_version' => '2.9.1',
+            'version' => '2.9.1.0',
+            'reference' => 'f259e2b15fb95494c83f52d3caad003bbf5ffaa1',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../monolog/monolog',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'psr/log' => array(
+            'pretty_version' => '1.1.4',
+            'version' => '1.1.4.0',
+            'reference' => 'd49695b909c3b7628b6289db5479a1c204601f11',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../psr/log',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'psr/log-implementation' => array(
+            'dev_requirement' => false,
+            'provided' => array(
+                0 => '1.0.0 || 2.0.0 || 3.0.0',
+            ),
+        ),
+        'symfony/polyfill-php80' => array(
+            'pretty_version' => 'v1.27.0',
+            'version' => '1.27.0.0',
+            'reference' => '7a6ff3f1959bb01aefccb463a0f2cd3d3d2fd936',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../symfony/polyfill-php80',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'symfony/process' => array(
+            'pretty_version' => 'v5.4.22',
+            'version' => '5.4.22.0',
+            'reference' => '4b850da0cc3a2a9181c1ed407adbca4733dc839b',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../symfony/process',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'wemersonjanuario/wkhtmltopdf-windows' => array(
+            'pretty_version' => '0.12.2.3',
+            'version' => '0.12.2.3',
+            'reference' => '90fcd3487cad5931287742113c449b926e9e48d8',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../wemersonjanuario/wkhtmltopdf-windows',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
     ),
-    'h4cc/wkhtmltopdf-amd64' => 
-    array (
-      'pretty_version' => '0.12.4',
-      'version' => '0.12.4.0',
-      'aliases' => 
-      array (
-      ),
-      'reference' => '4e2ab2d032a5d7fbe2a741de8b10b8989523c95b',
-    ),
-    'knplabs/knp-snappy' => 
-    array (
-      'pretty_version' => 'v1.2.1',
-      'version' => '1.2.1.0',
-      'aliases' => 
-      array (
-      ),
-      'reference' => '7bac60fb729147b7ccd8532c07df3f52a4afa8a4',
-    ),
-    'monolog/monolog' => 
-    array (
-      'pretty_version' => '2.1.1',
-      'version' => '2.1.1.0',
-      'aliases' => 
-      array (
-      ),
-      'reference' => 'f9eee5cec93dfb313a38b6b288741e84e53f02d5',
-    ),
-    'psr/log' => 
-    array (
-      'pretty_version' => '1.1.3',
-      'version' => '1.1.3.0',
-      'aliases' => 
-      array (
-      ),
-      'reference' => '0f73288fd15629204f9d42b7055f72dacbe811fc',
-    ),
-    'psr/log-implementation' => 
-    array (
-      'provided' => 
-      array (
-        0 => '1.0.0',
-      ),
-    ),
-    'symfony/polyfill-php80' => 
-    array (
-      'pretty_version' => 'v1.18.1',
-      'version' => '1.18.1.0',
-      'aliases' => 
-      array (
-      ),
-      'reference' => 'd87d5766cbf48d72388a9f6b85f280c8ad51f981',
-    ),
-    'symfony/process' => 
-    array (
-      'pretty_version' => 'v5.1.5',
-      'version' => '5.1.5.0',
-      'aliases' => 
-      array (
-      ),
-      'reference' => '1864216226af21eb76d9477f691e7cbf198e0402',
-    ),
-    'wemersonjanuario/wkhtmltopdf-windows' => 
-    array (
-      'pretty_version' => '0.12.2.3',
-      'version' => '0.12.2.3',
-      'aliases' => 
-      array (
-      ),
-      'reference' => '90fcd3487cad5931287742113c449b926e9e48d8',
-    ),
-  ),
 );

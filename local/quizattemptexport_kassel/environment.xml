@@ -15,4 +15,19 @@
             <CUSTOM_CHECK file="local/quizattemptexport_kassel/classes/environment/check.php" function="local_quizattemptexport_kassel\environment\check::execute" level="required" />
         </CUSTOM_CHECKS>
     </MOODLE>
+    <MOODLE version="3.11">
+        <CUSTOM_CHECKS>
+            <CUSTOM_CHECK file="local/quizattemptexport_kassel/classes/environment/check.php" function="local_quizattemptexport_kassel\environment\check::execute" level="required" />
+        </CUSTOM_CHECKS>
+    </MOODLE>
+    <MOODLE version="4.0">
+        <CUSTOM_CHECKS>
+            <CUSTOM_CHECK file="local/quizattemptexport_kassel/classes/environment/check.php" function="local_quizattemptexport_kassel\environment\check::execute" level="required" />
+        </CUSTOM_CHECKS>
+    </MOODLE>
+    <MOODLE version="4.1">
+        <CUSTOM_CHECKS>
+            <CUSTOM_CHECK file="local/quizattemptexport_kassel/classes/environment/check.php" function="local_quizattemptexport_kassel\environment\check::execute" level="required" />
+        </CUSTOM_CHECKS>
+    </MOODLE>
 </COMPATIBILITY_MATRIX>

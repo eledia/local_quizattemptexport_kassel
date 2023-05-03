@@ -41,22 +41,6 @@ if ($hassiteconfig) { // needs this condition or there is error on login page
             0)
     );
 
-    $themeobjects = get_list_of_themes();
-    $themes=array();
-    $themes[''] = get_string('forceno');
-    foreach ($themeobjects as $key => $theme) {
-        if (empty($theme->hidefromselector)) {
-            $themes[$key] = get_string('pluginname', 'theme_'.$theme->name);
-        }
-    }
-
-    $settings->add(new admin_setting_configselect('local_quizattemptexport_kassel/theme',
-            get_string('setting_theme', 'local_quizattemptexport_kassel'),
-            get_string('setting_theme_desc', 'local_quizattemptexport_kassel'),
-            0,
-            $themes)
-    );
-
     $pdfexportdir_default = $CFG->dataroot . '/quizattemptexport';
     $settings->add(new admin_setting_configdirectory('local_quizattemptexport_kassel/pdfexportdir',
             get_string('setting_pdfexportdir', 'local_quizattemptexport_kassel'),
@@ -69,6 +53,12 @@ if ($hassiteconfig) { // needs this condition or there is error on login page
             get_string('setting_pdfgenerationtimeout_desc', 'local_quizattemptexport_kassel'),
             120,
             PARAM_INT)
+    );
+
+    $settings->add(new admin_setting_configcheckbox('local_quizattemptexport/mathjaxenable',
+            get_string('setting_mathjaxenable', 'local_quizattemptexport_kassel'),
+            get_string('setting_mathjaxenable_desc', 'local_quizattemptexport_kassel'),
+            0)
     );
 
 }
