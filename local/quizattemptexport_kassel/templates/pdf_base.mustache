@@ -46,6 +46,15 @@
                 max-width: 100%;
             }
 
+            /*
+                Make sure content of "pre" elements does not exceed
+                width of boundary box.
+             */
+            pre {
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
+            }
+
 
             /** General table styling **/
             table {
