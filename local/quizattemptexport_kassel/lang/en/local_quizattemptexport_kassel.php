@@ -42,6 +42,7 @@ $string['label_attemptstarted'] = 'Attempt started';
 $string['label_attemptended'] = 'Attempt ended';
 $string['label_attemptresult'] = 'Assessment result';
 $string['postprocessing_addedstr_answerdeleted'] = 'Answer deleted';
+$string['postprocessing_addedstr_answerinvalid'] = 'Answer invalid';
 $string['nav_exportoverview'] = 'Attempt export overview';
 $string['page_overview_title'] = 'Exports for "{$a}"';
 $string['page_overview_attemptedreexport'] = 'Attempted to export the attempt again.';

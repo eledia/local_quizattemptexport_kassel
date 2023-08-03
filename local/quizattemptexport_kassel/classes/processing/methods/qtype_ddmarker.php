@@ -196,26 +196,44 @@ class qtype_ddmarker extends base {
         // Check for answers the user has deleted. Identified by a "todo" step
         // where each key within the steps data has an associated value of ""
         // (empty string).
+        // We also check for answers where no drop has hit a (correct) drop zone.
+        // Identified by a "complete" step where the associated API method returns
+        // 0 "parts right".
         $qattempt = $attempt->get_question_attempt($slot);
         $seqnoreqprocessing = [];
         foreach ($qattempt->get_step_iterator() as $seqno => $qastep) {
+
+            // Check for deleted answer.
             if ($qastep->get_state() instanceof \question_state_todo) {
                 $alldata = $qastep->get_all_data();
                 $reducedvals = array_values(array_unique($alldata));
                 if (count($reducedvals) == 1 && $reducedvals[0] == '') {
-                    $seqnoreqprocessing[] = $seqno;
+                    $seqnoreqprocessing[$seqno] = 'postprocessing_addedstr_answerdeleted';
+                }
+            }
+
+            // Check for invalid answer.
+            if ($qastep->get_state() instanceof \question_state_complete) {
+                $qtdata = $qastep->get_qt_data();
+                list($numpartsright, $divisor) = $question->get_num_parts_right($qtdata);
+                if ($numpartsright == 0) {
+                    $seqnoreqprocessing[$seqno] = 'postprocessing_addedstr_answerinvalid';
                 }
             }
         }
 
+        // For each response history step we identified above, we replace the "action" description
+        // with the string we associated with that step. We do this to enhance the readability of
+        // the actions for these steps, since they would lack a distinct description of the situation
+        // otherwise.
         if (!empty($seqnoreqprocessing)) {
-            foreach($seqnoreqprocessing as $toprocess) {
-                $cell2fix = $xpath->query('//div[@class="responsehistoryheader"]/table/tbody/tr[' . ($toprocess + 1) . ']/td[3]');
+            foreach($seqnoreqprocessing as $toprocessseqno => $replacementstringid) {
+                $cell2fix = $xpath->query('//div[@class="responsehistoryheader"]/table/tbody/tr[' . ($toprocessseqno + 1) . ']/td[3]');
                 if (!empty($cell2fix[0])) {
 
                     /** @var \DOMElement $cell2fix */
                     $cell2fix = $cell2fix[0];
-                    $cell2fix->textContent = get_string('postprocessing_addedstr_answerdeleted', 'local_quizattemptexport_kassel');
+                    $cell2fix->textContent = get_string($replacementstringid, 'local_quizattemptexport_kassel');
                 }
             }
         }
