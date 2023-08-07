@@ -73,6 +73,13 @@ class qtype_ddmarker extends base {
             // Get the users drops from a complete answer.
             if ($step->get_state() instanceof \question_state_complete) {
                 $userdrops = $step->get_all_data();
+
+            } else if (!empty($userdrops) && $step->get_state() instanceof \question_state_todo) {
+
+                // Delete saved user drops if we encounter another "todo" step after
+                // we encountered a "complete" step, i.e. the user has fully revoked
+                // his previous answer.
+                $userdrops = null;
             }
         }
 
