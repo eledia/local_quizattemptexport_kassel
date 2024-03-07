@@ -98,7 +98,7 @@ class qtype_essay extends base {
 
         // Get the question steps table rows and the specific cells we want to edit in there and append
         // the fullname of the user that has done the grading in the relevant steps.
-        $cells = $xpath->query('//div[@class="responsehistoryheader"]/table/tbody/tr/td[@class="cell c2"]');
+        $cells = $xpath->query('//div[@class="responsehistoryheader"]//table/tbody/tr/td[@class="cell c2"]');
         foreach ($cells as $key => $cell) {
             /** @var \DOMElement $cell */
 
